@@ -1,0 +1,35 @@
+# Core dependencies
+pandas>=2.0.0
+numpy>=1.24.0
+
+# VNStock API
+vnstock>=0.2.0
+
+# Technical Analysis
+pandas-ta>=0.3.14b
+
+# Database
+sqlalchemy>=2.0.0
+
+# HTTP & Async
+aiohttp>=3.8.0
+
+# Rate Limiting & Retry
+tenacity>=8.2.0
+
+# Telegram Bot
+python-telegram-bot>=20.0
+
+# Scheduling
+schedule>=1.2.0
+
+# Configuration
+pyyaml>=6.0
+
+# Logging
+loguru>=0.7.0
+
+# Development
+pytest>=7.0.0
+black>=23.0.0
+flake8>=6.0.0
