@@ -225,7 +225,7 @@ class IndicatorPipeline:
             price_cols = ['open', 'high', 'low', 'close']
             for col in price_cols:
                 if col in cleaned_df.columns:
-                    cleaned_df[col] = cleaned_df[col].fillna(method='ffill')
+                    cleaned_df[col] = cleaned_df[col].ffill()
             
             # For volume, fill with 0 (no trading)
             if 'volume' in cleaned_df.columns:

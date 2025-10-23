@@ -250,7 +250,11 @@ class TechnicalAnalyzer:
             
             # Volume ratio (current volume / average volume)
             if 'volume_sma' in volume_dict and not volume_dict['volume_sma'].isnull().all():
-                volume_dict['volume_ratio'] = volume / volume_dict['volume_sma']
+                volume_sma_series = volume_dict['volume_sma']
+                if isinstance(volume_sma_series, pd.Series):
+                    volume_dict['volume_ratio'] = volume / volume_sma_series
+                else:
+                    volume_dict['volume_ratio'] = pd.Series(index=volume.index, dtype=float)
             else:
                 volume_dict['volume_ratio'] = pd.Series(index=volume.index, dtype=float)
             
