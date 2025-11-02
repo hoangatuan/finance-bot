@@ -7,7 +7,7 @@ import asyncio
 import sys
 import os
 from datetime import datetime, date, timedelta
-from typing import Dict
+from typing import Dict, List
 import pandas as pd
 
 # Add src to path
@@ -16,6 +16,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from indicators.ta import TechnicalAnalyzer
 from indicators.pipeline import IndicatorPipeline
 from indicators.support_resistance import SupportResistanceAnalyzer
+from indicators.ai_analyzer import OpenAIAnalyzer
 from utils.data_fetcher import fetch_extended_historical, get_current_price
 
 
@@ -207,7 +208,7 @@ async def analyze_trading_signals(df: pd.DataFrame):
     try:
         if df.empty:
             print("❌ No data for signal analysis")
-            return
+            return []
         
         latest = df.iloc[-1]
         close_price = latest['close']
@@ -262,9 +263,90 @@ async def analyze_trading_signals(df: pd.DataFrame):
         
         if not signals:
             print("   ⚪ No clear signals detected")
+        
+        return signals
             
     except Exception as e:
         print(f"❌ Error analyzing trading signals: {e}")
+        return []
+
+
+async def get_ai_suggestions(
+    ticker: str,
+    current_price: float,
+    indicators: Dict,
+    zones: Dict,
+    signals: List[str],
+    df: pd.DataFrame
+):
+    """
+    Get AI trading suggestions from OpenAI based on technical analysis
+    
+    Args:
+        ticker: Stock symbol
+        current_price: Current stock price
+        indicators: Dictionary with latest indicator values
+        zones: Dictionary with support/resistance zones
+        signals: List of trading signals
+        df: DataFrame with historical data for recent price action
+    
+    Returns:
+        Dictionary with AI suggestions or None if error/not configured
+    """
+    try:
+        # Check if OpenAI API key is configured
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            print("\n⚠️  OpenAI API key not configured. Skipping AI suggestions.")
+            print("   Set OPENAI_API_KEY environment variable to enable AI analysis.")
+            return None
+        
+        print("\n🤖 Getting AI Trading Suggestions...")
+        
+        # Create AI analyzer
+        ai_analyzer = OpenAIAnalyzer()
+        
+        # Get recent price action
+        recent_price_action = None
+        if not df.empty and len(df) >= 10:
+            recent_price_action = {
+                'high': df['high'].tail(10).max(),
+                'low': df['low'].tail(10).min(),
+                'trend': 'uptrend' if df['close'].iloc[-1] > df['close'].iloc[-10] else 'downtrend'
+            }
+        
+        # Get AI suggestions
+        suggestions = await ai_analyzer.get_trading_suggestions(
+            ticker=ticker,
+            current_price=current_price,
+            indicators=indicators,
+            zones=zones,
+            signals=signals,
+            recent_price_action=recent_price_action
+        )
+        
+        # Display formatted output
+        if suggestions and 'error' not in suggestions:
+            formatted_output = ai_analyzer.format_suggestions_output(suggestions)
+            print(formatted_output)
+        elif suggestions and 'error' in suggestions:
+            print(f"❌ Error getting AI suggestions: {suggestions['error']}")
+            return None
+        else:
+            print("❌ No suggestions returned from AI")
+            return None
+        
+        return suggestions
+        
+    except ValueError as e:
+        # API key not configured - this is okay, just skip
+        print(f"\n⚠️  {str(e)}")
+        return None
+    except Exception as e:
+        print(f"\n❌ Error getting AI suggestions: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 async def test_support_resistance_analysis(ticker: str = 'HPG'):
@@ -284,10 +366,6 @@ async def test_support_resistance_analysis(ticker: str = 'HPG'):
         if historical_df is None:
             print(f"❌ Failed to fetch data for {ticker}")
             return
-        
-        # Ensure we have enough data
-        if len(historical_df) < 200:
-            print(f"⚠️  Warning: Only {len(historical_df)} days of data. Recommended: 200+ days for accurate pivot analysis.")
         
         # Step 2: Get current price
         print(f"\n💰 Step 2: Getting current price...")
@@ -318,6 +396,20 @@ async def test_support_resistance_analysis(ticker: str = 'HPG'):
         else:
             print(f"\n⚠️  Support/Resistance analysis completed with warnings")
         
+        # Step 6: Get trading signals
+        signals = await analyze_trading_signals(processed_df)
+        
+        # Step 7: Get AI suggestions
+        if zones:
+            await get_ai_suggestions(
+                ticker=ticker,
+                current_price=current_price,
+                indicators=latest_indicators,
+                zones=zones,
+                signals=signals or [],
+                df=processed_df
+            )
+        
         print("\n" + "=" * 70)
         
     except Exception as e:
@@ -344,7 +436,26 @@ async def main():
         return
     
     # Step 3: Analyze trading signals
-    await analyze_trading_signals(analyzed_data)
+    signals = await analyze_trading_signals(analyzed_data)
+    
+    # Step 4: Get AI suggestions (if OpenAI API key is configured)
+    latest_indicators = analyzed_data.iloc[-1].to_dict()
+    historical_close = analyzed_data.iloc[-1]['close']
+    current_price = await get_current_price('HPG', historical_close)
+    if current_price is None:
+        current_price = historical_close
+    
+    # Get basic zones for AI analysis (simplified version)
+    zones = {'resistance_zones': [], 'support_zones': []}
+    
+    await get_ai_suggestions(
+        ticker='HPG',
+        current_price=current_price,
+        indicators=latest_indicators,
+        zones=zones,
+        signals=signals or [],
+        df=analyzed_data
+    )
     
     print("\n✅ Analysis completed successfully!")
     print("=" * 50)
