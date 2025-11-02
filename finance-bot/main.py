@@ -7,65 +7,39 @@ import asyncio
 import sys
 import os
 from datetime import datetime, date, timedelta
+from typing import Dict
 import pandas as pd
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from fetcher.fetcher_factory import FetcherFactory
 from indicators.ta import TechnicalAnalyzer
 from indicators.pipeline import IndicatorPipeline
+from indicators.support_resistance import SupportResistanceAnalyzer
+from utils.data_fetcher import fetch_extended_historical, get_current_price
 
 
 async def fetch_hpg_data():
-    """Fetch HPG stock data for today and recent history"""
-    print("🔍 Fetching HPG stock data...")
+    """Fetch HPG stock data for today and recent history (legacy function)"""
+    return await fetch_extended_historical('HPG', days=30)
+
+
+async def run_technical_analysis(df: pd.DataFrame, ticker: str = None):
+    """
+    Run technical analysis on the fetched data
     
-    try:
-        # Create VNStock fetcher
-        fetcher = FetcherFactory.create_fetcher('vnstock', rate_limit=60)
-        
-        # Get today's date and 30 days back for context
-        end_date = date.today()
-        start_date = end_date - timedelta(days=30)
-        
-        print(f"📅 Fetching data from {start_date} to {end_date}")
-        
-        # Fetch historical data
-        historical_df = await fetcher.fetch_historical(
-            ticker='HPG',
-            start_date=start_date,
-            end_date=end_date,
-            interval='1D'
-        )
-        
-        if historical_df.empty:
-            print("❌ No historical data found for HPG")
-            return None
-        
-        print(f"✅ Fetched {len(historical_df)} historical records")
-        print(f"📊 Data columns: {list(historical_df.columns)}")
-        
-        # Show latest data
-        latest_data = historical_df.iloc[-1]
-        print(f"\n📈 Latest HPG Data:")
-        print(f"   Date: {latest_data['timestamp'].strftime('%Y-%m-%d')}")
-        print(f"   Open: {latest_data['open']:,.2f}")
-        print(f"   High: {latest_data['high']:,.2f}")
-        print(f"   Low: {latest_data['low']:,.2f}")
-        print(f"   Close: {latest_data['close']:,.2f}")
-        print(f"   Volume: {latest_data['volume']:,.0f}")
-        
-        return historical_df
-        
-    except Exception as e:
-        print(f"❌ Error fetching HPG data: {e}")
-        return None
-
-
-async def run_technical_analysis(df: pd.DataFrame):
-    """Run technical analysis on the fetched data"""
-    print("\n🔬 Running Technical Analysis...")
+    Args:
+        df: DataFrame with historical data
+        ticker: Stock symbol (auto-detected from df if not provided)
+    """
+    # Auto-detect ticker from DataFrame if not provided
+    if ticker is None:
+        if 'ticker' in df.columns:
+            ticker = df.iloc[0]['ticker']
+        else:
+            ticker = 'UNKNOWN'
+    
+    print(f"\n🔬 Running Technical Analysis for {ticker}...")
     
     try:
         # Create technical analyzer and pipeline
@@ -74,7 +48,7 @@ async def run_technical_analysis(df: pd.DataFrame):
         
         # Process the data with technical indicators
         processed_df = await pipeline.process_historical_data(
-            df, 'HPG',
+            df, ticker,
             sma_periods=[20, 50],  # 20-day and 50-day SMA
             rsi_period=14,         # 14-day RSI
             macd_fast=12,          # MACD fast period
@@ -92,7 +66,7 @@ async def run_technical_analysis(df: pd.DataFrame):
         # Get the latest indicators
         latest_indicators = processed_df.iloc[-1]
         
-        print(f"\n📊 Latest Technical Indicators for HPG:")
+        print(f"\n📊 Latest Technical Indicators for {ticker}:")
         print(f"   SMA(20): {latest_indicators.get('sma_20', 'N/A'):,.2f}" if pd.notna(latest_indicators.get('sma_20')) else "   SMA(20): N/A")
         print(f"   SMA(50): {latest_indicators.get('sma_50', 'N/A'):,.2f}" if pd.notna(latest_indicators.get('sma_50')) else "   SMA(50): N/A")
         print(f"   RSI(14): {latest_indicators.get('rsi_14', 'N/A'):.2f}" if pd.notna(latest_indicators.get('rsi_14')) else "   RSI(14): N/A")
@@ -111,6 +85,116 @@ async def run_technical_analysis(df: pd.DataFrame):
         
     except Exception as e:
         print(f"❌ Error in technical analysis: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: Dict):
+    """
+    Analyze support and resistance zones with confidence scoring
+    
+    Args:
+        ticker: Stock symbol
+        df: DataFrame with historical data and indicators
+        indicators: Dictionary with latest indicator values
+    """
+    print("\n🛡️ Analyzing Support & Resistance Zones...")
+    
+    try:
+        # Get current price (validate against historical)
+        historical_close = df.iloc[-1]['close']
+        current_price = await get_current_price(ticker, historical_close)
+        if current_price is None:
+            current_price = historical_close
+            print(f"📊 Using latest historical close as current price: {current_price:,.2f}")
+        
+        # Create SR analyzer
+        sr_analyzer = SupportResistanceAnalyzer()
+        
+        # Find pivots
+        print("🔍 Finding pivot points...")
+        pivots = await sr_analyzer.find_pivots(df, left_bars=5, right_bars=5)
+        print(f"   Found {len(pivots['pivot_highs'])} pivot highs and {len(pivots['pivot_lows'])} pivot lows")
+        
+        # Create zones (include touching levels detection for consolidation zones)
+        print("🗺️  Creating pivot zones...")
+        zones = await sr_analyzer.create_pivot_zones(
+            pivots,
+            current_price,
+            df=df,  # Pass DataFrame for touching levels detection
+            tolerance_percent=1.5,
+            min_touches=2,
+            include_touching_levels=True  # Enable consolidation zone detection
+        )
+        
+        # Display zones
+        print(f"\n📊 Support & Resistance Analysis for {ticker}:")
+        print(f"   Current Price: {current_price:,.2f}")
+        
+        # Display resistance zones
+        print(f"\n⚡ Resistance Zones (nearest above current price):")
+        if zones['resistance_zones']:
+            for i, zone in enumerate(zones['resistance_zones'][:3], 1):
+                print(f"   {i}. Zone: {zone['lower']:,.2f} - {zone['upper']:,.2f} (Middle: {zone['middle']:,.2f})")
+                print(f"      Distance: {zone['distance_pct']:.2f}% above | Strength: {zone['strength']:.2f} | Touches: {zone['touch_count']}")
+        else:
+            print("   No resistance zones found")
+        
+        # Display support zones
+        print(f"\n🛡️ Support Zones (nearest below current price):")
+        if zones['support_zones']:
+            for i, zone in enumerate(zones['support_zones'][:3], 1):
+                print(f"   {i}. Zone: {zone['lower']:,.2f} - {zone['upper']:,.2f} (Middle: {zone['middle']:,.2f})")
+                print(f"      Distance: {zone['distance_pct']:.2f}% below | Strength: {zone['strength']:.2f} | Touches: {zone['touch_count']}")
+        else:
+            print("   No support zones found")
+        
+        # Calculate confidence for nearest zones
+        print(f"\n🎯 Breakout Confidence Analysis:")
+        
+        # Nearest resistance
+        if zones['resistance_zones']:
+            nearest_resistance = zones['resistance_zones'][0]
+            resistance_confidence = await sr_analyzer.calculate_breakout_confidence(
+                nearest_resistance,
+                indicators,
+                df,
+                is_resistance=True
+            )
+            
+            print(f"\n   Nearest Resistance: {nearest_resistance['middle']:,.2f}")
+            print(f"   Confidence Score: {resistance_confidence['confidence_score']:.2f} / 1.00")
+            print(f"   Interpretation: {resistance_confidence['interpretation']}")
+            print(f"   Breakdown:")
+            print(f"      Volume Strength: {resistance_confidence['breakdown']['volume_strength']:.2f}")
+            print(f"      Zone Strength: {resistance_confidence['breakdown']['zone_strength']:.2f}")
+            print(f"      Momentum Strength: {resistance_confidence['breakdown']['momentum_strength']:.2f}")
+            print(f"      Pattern Strength: {resistance_confidence['breakdown']['pattern_strength']:.2f}")
+        
+        # Nearest support
+        if zones['support_zones']:
+            nearest_support = zones['support_zones'][0]
+            support_confidence = await sr_analyzer.calculate_breakout_confidence(
+                nearest_support,
+                indicators,
+                df,
+                is_resistance=False
+            )
+            
+            print(f"\n   Nearest Support: {nearest_support['middle']:,.2f}")
+            print(f"   Confidence Score: {support_confidence['confidence_score']:.2f} / 1.00")
+            print(f"   Interpretation: {support_confidence['interpretation']}")
+            print(f"   Breakdown:")
+            print(f"      Volume Strength: {support_confidence['breakdown']['volume_strength']:.2f}")
+            print(f"      Zone Strength: {support_confidence['breakdown']['zone_strength']:.2f}")
+            print(f"      Momentum Strength: {support_confidence['breakdown']['momentum_strength']:.2f}")
+            print(f"      Pattern Strength: {support_confidence['breakdown']['pattern_strength']:.2f}")
+        
+        return zones
+        
+    except Exception as e:
+        print(f"❌ Error analyzing support/resistance: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -183,6 +267,65 @@ async def analyze_trading_signals(df: pd.DataFrame):
         print(f"❌ Error analyzing trading signals: {e}")
 
 
+async def test_support_resistance_analysis(ticker: str = 'HPG'):
+    """
+    Test function for support/resistance analysis with extended data
+    
+    Args:
+        ticker: Stock symbol to analyze (default: HPG)
+    """
+    print(f"\n🧪 Testing Support & Resistance Analysis for {ticker}")
+    print("=" * 70)
+    
+    try:
+        # Step 1: Fetch extended historical data (200+ days for pivot analysis)
+        print(f"\n📥 Step 1: Fetching extended historical data...")
+        historical_df = await fetch_extended_historical(ticker, days=250)
+        if historical_df is None:
+            print(f"❌ Failed to fetch data for {ticker}")
+            return
+        
+        # Ensure we have enough data
+        if len(historical_df) < 200:
+            print(f"⚠️  Warning: Only {len(historical_df)} days of data. Recommended: 200+ days for accurate pivot analysis.")
+        
+        # Step 2: Get current price
+        print(f"\n💰 Step 2: Getting current price...")
+        historical_close = historical_df.iloc[-1]['close']
+        current_price = await get_current_price(ticker, historical_close)
+        if current_price is None:
+            current_price = historical_close
+            print(f"📊 Using latest historical close: {current_price:,.2f}")
+        
+        # Step 3: Run technical analysis
+        print(f"\n📈 Step 3: Running technical analysis...")
+        processed_df = await run_technical_analysis(historical_df, ticker)
+        if processed_df is None:
+            print("❌ Failed to run technical analysis")
+            return
+        
+        # Step 4: Get latest indicators
+        latest_indicators = processed_df.iloc[-1].to_dict()
+        
+        # Step 5: Analyze support and resistance
+        print(f"\n🛡️ Step 4: Analyzing support & resistance zones...")
+        zones = await analyze_support_resistance(ticker, processed_df, latest_indicators)
+        
+        if zones:
+            print(f"\n✅ Support/Resistance analysis completed successfully!")
+            print(f"   Found {len(zones['resistance_zones'])} resistance zones")
+            print(f"   Found {len(zones['support_zones'])} support zones")
+        else:
+            print(f"\n⚠️  Support/Resistance analysis completed with warnings")
+        
+        print("\n" + "=" * 70)
+        
+    except Exception as e:
+        print(f"\n❌ Error in support/resistance test: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 async def main():
     """Main function to run the finance bot"""
     print("🚀 Finance Bot - HPG Stock Analysis")
@@ -208,5 +351,12 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Run the async main function
-    asyncio.run(main()) 
+    import sys
+    
+    # Check if user wants to run SR analysis test
+    if len(sys.argv) > 1 and sys.argv[1] == '--test-sr':
+        ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
+        asyncio.run(test_support_resistance_analysis(ticker))
+    else:
+        # Run the async main function
+        asyncio.run(main()) 
