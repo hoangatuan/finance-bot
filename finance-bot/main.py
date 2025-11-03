@@ -18,6 +18,8 @@ from indicators.pipeline import IndicatorPipeline
 from indicators.support_resistance import SupportResistanceAnalyzer
 from indicators.ai_analyzer import OpenAIAnalyzer
 from utils.data_fetcher import fetch_extended_historical, get_current_price
+from portfolio.analyzer import run_daily_analysis
+from portfolio.formatter import format_portfolio_analysis
 
 
 async def fetch_hpg_data():
@@ -461,13 +463,74 @@ async def main():
     print("=" * 50)
 
 
+async def analyze_portfolio(portfolio_path: str = None, include_ai: bool = True):
+    """
+    Analyze portfolio with technical analysis and AI advice
+    
+    Args:
+        portfolio_path: Path to portfolio JSON file. If None, uses default.
+        include_ai: If True, include AI portfolio advice
+    """
+    print("🚀 Portfolio Analysis")
+    print("=" * 70)
+    
+    try:
+        # Run daily analysis
+        analysis_result = await run_daily_analysis(
+            portfolio_path=portfolio_path,
+            days_history=250,
+            verbose=True
+        )
+        
+        ai_advice = None
+        
+        # Get AI advice if requested and OpenAI is configured
+        if include_ai:
+            try:
+                api_key = os.getenv('OPENAI_API_KEY')
+                if api_key:
+                    print("\n🤖 Getting AI Portfolio Advice...")
+                    ai_analyzer = OpenAIAnalyzer()
+                    ai_advice = await ai_analyzer.get_portfolio_advice(
+                        portfolio_data=analysis_result.get("portfolio", {}),
+                        ta_results=analysis_result.get("ta_results", {}),
+                        portfolio_summary=analysis_result.get("portfolio_summary", {})
+                    )
+                else:
+                    print("\n⚠️  OpenAI API key not configured. Skipping AI advice.")
+                    print("   Set OPENAI_API_KEY environment variable to enable AI analysis.")
+            except Exception as e:
+                print(f"\n⚠️  Error getting AI advice: {e}")
+        
+        # Format and display results
+        formatted_output = format_portfolio_analysis(analysis_result, ai_advice)
+        print(formatted_output)
+        
+    except Exception as e:
+        print(f"\n❌ Error analyzing portfolio: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == "__main__":
     import sys
     
-    # Check if user wants to run SR analysis test
-    if len(sys.argv) > 1 and sys.argv[1] == '--test-sr':
-        ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
-        asyncio.run(test_support_resistance_analysis(ticker))
+    # Check command line arguments
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == '--test-sr':
+            # Support/resistance test
+            ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
+            asyncio.run(test_support_resistance_analysis(ticker))
+        elif command == 'analyze-portfolio':
+            # Portfolio analysis
+            portfolio_path = sys.argv[2] if len(sys.argv) > 2 else None
+            include_ai = '--no-ai' not in sys.argv
+            asyncio.run(analyze_portfolio(portfolio_path=portfolio_path, include_ai=include_ai))
+        else:
+            # Default: run main function
+            asyncio.run(main())
     else:
-        # Run the async main function
+        # Run the async main function (default behavior)
         asyncio.run(main()) 

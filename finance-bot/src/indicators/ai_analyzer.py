@@ -392,4 +392,231 @@ Provide clear, actionable recommendations suitable for retail traders.
         lines.append("\n" + "=" * 70)
         
         return "\n".join(lines)
+    
+    def format_portfolio_data(self, 
+                             portfolio_data: Dict[str, Any],
+                             ta_results: Dict[str, Any],
+                             portfolio_summary: Dict[str, Any]) -> str:
+        """
+        Format portfolio data and TA results for OpenAI portfolio analysis
+        
+        Args:
+            portfolio_data: Portfolio dictionary with stocks and cash
+            ta_results: Dictionary with TA results for each stock
+            portfolio_summary: Portfolio summary metrics
+            
+        Returns:
+            Formatted string with portfolio data
+        """
+        lines = [
+            "## Portfolio Analysis Request",
+            f"\n**Analysis Date:** {portfolio_summary.get('analysis_timestamp', 'N/A')}",
+        ]
+        
+        # Portfolio Summary
+        cash_balance = portfolio_data.get("cash_balance", {})
+        lines.append("\n### Portfolio Summary:")
+        lines.append(f"- Total Positions: {portfolio_summary.get('total_positions', 0)}")
+        lines.append(f"- Total Portfolio Value: {portfolio_summary.get('total_value', 0):,.0f} VND")
+        lines.append(f"- Total Cost Basis: {portfolio_summary.get('total_cost', 0):,.0f} VND")
+        lines.append(f"- Total P&L: {portfolio_summary.get('total_pnl', 0):,.0f} VND ({portfolio_summary.get('total_pnl_pct', 0):+.2f}%)")
+        lines.append(f"- Cash Balance: {cash_balance.get('balance', 0):,.0f} {cash_balance.get('currency', 'VND')}")
+        
+        # Individual Stock Analysis
+        lines.append("\n### Individual Stock Analysis:")
+        
+        for symbol, ta_result in ta_results.items():
+            if "error" in ta_result:
+                lines.append(f"\n#### {symbol}")
+                lines.append(f"⚠️  Error: {ta_result['error']}")
+                continue
+            
+            stock = ta_result.get("stock", {})
+            current_price = ta_result.get("current_price", 0)
+            indicators = ta_result.get("indicators", {})
+            zones = ta_result.get("support_resistance", {})
+            
+            lines.append(f"\n#### {symbol}")
+            lines.append(f"**Position:**")
+            lines.append(f"- Shares: {stock.get('total_shares', 0):,}")
+            lines.append(f"- Avg Buy Price: {stock.get('avg_buy_price', 0):,.2f} VND")
+            # current_price is in full VND format
+            lines.append(f"- Current Price: {current_price:,.2f} VND")
+            lines.append(f"- Position Value: {ta_result.get('position_value', 0):,.0f} VND")
+            lines.append(f"- P&L: {ta_result.get('position_pnl', 0):,.0f} VND ({ta_result.get('position_pnl_pct', 0):+.2f}%)")
+            lines.append(f"- Buy Method: {stock.get('buy_method', 'N/A')}")
+            if stock.get('sector'):
+                lines.append(f"- Sector: {stock.get('sector')}")
+            if stock.get('note'):
+                lines.append(f"- Note: {stock.get('note')}")
+            
+            # Transaction History
+            transactions = ta_result.get("transaction_history", [])
+            if transactions:
+                lines.append(f"\n**Transaction History:** ({len(transactions)} transactions)")
+                for txn in transactions[-5:]:  # Show last 5 transactions
+                    txn_type = txn.get("type", "unknown")
+                    txn_date = txn.get("date", "N/A")
+                    txn_shares = txn.get("shares", 0)
+                    txn_price = txn.get("price", 0)
+                    if txn_type == "buy":
+                        lines.append(f"  - {txn_date}: BUY {txn_shares} @ {txn_price:,.2f} VND (Cost: {txn.get('total_cost', 0):,.0f} VND)")
+                    else:
+                        lines.append(f"  - {txn_date}: SELL {txn_shares} @ {txn_price:,.2f} VND (Proceeds: {txn.get('total_proceeds', 0):,.0f} VND)")
+            
+            # Technical Indicators
+            lines.append(f"\n**Technical Indicators:**")
+            if pd.notna(indicators.get('sma_20')):
+                lines.append(f"- SMA(20): {indicators['sma_20']:,.2f}")
+            if pd.notna(indicators.get('sma_50')):
+                lines.append(f"- SMA(50): {indicators['sma_50']:,.2f}")
+            if pd.notna(indicators.get('rsi_14')):
+                lines.append(f"- RSI(14): {indicators['rsi_14']:.2f}")
+            if pd.notna(indicators.get('macd')):
+                lines.append(f"- MACD: {indicators['macd']:.2f}")
+            if pd.notna(indicators.get('macd_signal')):
+                lines.append(f"- MACD Signal: {indicators['macd_signal']:.2f}")
+            if pd.notna(indicators.get('volume_ratio')):
+                lines.append(f"- Volume Ratio: {indicators['volume_ratio']:.2f}")
+            
+            # Support/Resistance
+            # Zones are now in full VND format (converted in analyzer)
+            if zones:
+                if zones.get('resistance_zones'):
+                    lines.append(f"\n**Nearest Resistance:**")
+                    nearest_res = zones['resistance_zones'][0] if zones['resistance_zones'] else None
+                    if nearest_res:
+                        resistance_middle = nearest_res.get('middle', 0)
+                        resistance_distance = nearest_res.get('distance_pct', 0)
+                        direction = "above" if resistance_distance > 0 else "below"
+                        lines.append(f"- Zone: {resistance_middle:,.2f} VND")
+                        lines.append(f"- Distance: {abs(resistance_distance):.2f}% {direction}")
+                        lines.append(f"- Strength: {nearest_res.get('strength', 0):.2f}")
+                
+                if zones.get('support_zones'):
+                    lines.append(f"\n**Nearest Support:**")
+                    nearest_sup = zones['support_zones'][0] if zones['support_zones'] else None
+                    if nearest_sup:
+                        support_middle = nearest_sup.get('middle', 0)
+                        support_distance = nearest_sup.get('distance_pct', 0)
+                        direction = "below" if support_distance < 0 else "above"
+                        lines.append(f"- Zone: {support_middle:,.2f} VND")
+                        lines.append(f"- Distance: {abs(support_distance):.2f}% {direction}")
+                        lines.append(f"- Strength: {nearest_sup.get('strength', 0):.2f}")
+        
+        return "\n".join(lines)
+    
+    def create_portfolio_prompt(self, portfolio_data: str) -> str:
+        """
+        Create comprehensive prompt for portfolio-level analysis
+        
+        Args:
+            portfolio_data: Formatted portfolio and TA data
+            
+        Returns:
+            Complete prompt string for portfolio analysis
+        """
+        prompt = f"""You are an experienced portfolio manager and technical analyst specializing in Vietnamese stock market.
+Analyze the following portfolio data and provide comprehensive investment advice.
+
+{portfolio_data}
+
+Please provide your analysis in the following structured format:
+
+## Portfolio-Level Recommendations
+
+1. **Overall Portfolio Assessment**: 
+   - Overall market outlook
+   - Portfolio health and performance
+   - Risk assessment
+
+2. **Portfolio Strategy**:
+   - Rebalancing suggestions (if needed)
+   - Diversification assessment
+   - Cash management recommendations
+
+3. **Individual Stock Recommendations** (for each stock):
+   - **Action**: BUY MORE / SELL / HOLD / REDUCE
+   - **Reasoning**: Brief explanation based on TA and position
+   - **Target Price**: Suggested entry/exit price
+   - **Stop Loss**: If applicable
+   - **Confidence**: LOW / MODERATE / HIGH
+
+4. **Risk Management**:
+   - Portfolio-level risks
+   - Position sizing recommendations
+   - Sector concentration concerns
+
+5. **Action Items**:
+   - Priority actions to take
+   - Watchlist items
+   - Key levels to monitor
+
+Important considerations:
+- This is for Vietnamese stock market (VND currency)
+- Consider transaction history and cost basis
+- Factor in current market conditions and technical indicators
+- Provide actionable, practical advice
+- Consider both bullish and bearish scenarios
+- Account for cash balance and liquidity needs
+- Transaction history shows purchase patterns (DCA, lump sum, etc.)
+
+Provide clear, actionable portfolio management recommendations suitable for retail investors.
+"""
+        return prompt
+    
+    async def get_portfolio_advice(self,
+                                  portfolio_data: Dict[str, Any],
+                                  ta_results: Dict[str, Any],
+                                  portfolio_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get portfolio-level investment advice from OpenAI
+        
+        Args:
+            portfolio_data: Portfolio dictionary with stocks and cash
+            ta_results: Dictionary with TA results for each stock
+            portfolio_summary: Portfolio summary metrics
+            
+        Returns:
+            Dictionary with AI portfolio advice
+        """
+        try:
+            # Format portfolio data
+            formatted_data = self.format_portfolio_data(
+                portfolio_data, ta_results, portfolio_summary
+            )
+            
+            # Create prompt
+            prompt = self.create_portfolio_prompt(formatted_data)
+            
+            # Call OpenAI API
+            def _call_openai():
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a professional portfolio manager and technical analyst for Vietnamese stock market."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.7,
+                    max_tokens=3000
+                )
+            
+            response = await asyncio.to_thread(_call_openai)
+            
+            # Extract response
+            ai_content = response.choices[0].message.content
+            
+            return {
+                'portfolio_summary': portfolio_summary,
+                'raw_response': ai_content,
+                'model_used': self.model,
+                'analysis_timestamp': portfolio_summary.get('analysis_timestamp')
+            }
+            
+        except Exception as e:
+            return {
+                'error': str(e),
+                'raw_response': None,
+                'portfolio_summary': portfolio_summary
+            }
 

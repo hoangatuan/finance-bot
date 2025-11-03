@@ -1,0 +1,138 @@
+{
+  "cash_balance": {
+    "balance": 550000.0,
+    "currency": "VND",
+    "updated_at": "2024-01-15T10:30:00"
+  },
+  "stocks": [
+    {
+      "symbol": "HPG",
+      "total_shares": 17000,
+      "avg_buy_price": 23.65,
+      "buy_method": "cash",
+      "sector": "Steel",
+      "note": "Long-term hold, steel industry",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 170000,
+          "price": 23.65,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ]
+    },
+    {
+      "symbol": "MBB",
+      "total_shares": 22400,
+      "avg_buy_price": 19.7,
+      "buy_method": "cash",
+      "sector": "Banking",
+      "note": "Banking sector exposure",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 22400,
+          "price": 19.7,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ],
+      "created_at": "2024-01-08T11:30:00",
+      "updated_at": "2024-01-12T14:20:00"
+    },
+    {
+      "symbol": "HCM",
+      "total_shares": 2000,
+      "avg_buy_price": 22.5,
+      "buy_method": "cash",
+      "sector": "Stock Brokerage",
+      "note": "Need to find a good selling point",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 2000,
+          "price": 22.5,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ],
+      "created_at": "2024-01-08T11:30:00",
+      "updated_at": "2024-01-12T14:20:00"
+    },
+    {
+      "symbol": "GEG",
+      "total_shares": 6000,
+      "avg_buy_price": 16.2,
+      "buy_method": "cash",
+      "sector": "Electricity",
+      "note": "Need to find a good selling point",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 6000,
+          "price": 16.2,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ],
+      "created_at": "2024-01-08T11:30:00",
+      "updated_at": "2024-01-12T14:20:00"
+    },
+    {
+      "symbol": "DXG",
+      "total_shares": 10000,
+      "avg_buy_price": 21.0,
+      "buy_method": "cash",
+      "sector": "Real estate",
+      "note": "",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 10000,
+          "price": 21.0,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ],
+      "created_at": "2024-01-08T11:30:00",
+      "updated_at": "2024-01-12T14:20:00"
+    },
+    {
+      "symbol": "KDH",
+      "total_shares": 6000,
+      "avg_buy_price": 33.2,
+      "buy_method": "cash",
+      "sector": "Real estate",
+      "note": "",
+      "transactions": [
+        {
+          "id": "txn_001",
+          "date": "2024-01-05T09:00:00",
+          "type": "buy",
+          "shares": 6000,
+          "price": 33.2,
+          "buy_method": "cash",
+          "note": "Initial purchase"
+        }
+      ],
+      "created_at": "2024-01-08T11:30:00",
+      "updated_at": "2024-01-12T14:20:00"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "last_updated": "2024-01-15T10:30:00",
+    "total_stocks": 2
+  }
+}
