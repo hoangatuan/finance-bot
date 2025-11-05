@@ -130,8 +130,8 @@ Analyze the following technical data and provide actionable trading suggestions.
 
 Please provide your analysis in the following structured format:
 
-1. **Overall Recommendation**: (BUY / SELL / HOLD)
-2. **Risk Level**: (LOW / MODERATE / HIGH)
+1. **Overall Recommendation**: (BUY / SELL / HOLD / REDUCE / DCA / INVEST MORE / ...)
+2. **Risk Level**: 0-100
 3. **Reasoning**: Provide a concise explanation based on the technical indicators and support/resistance zones
 4. **Entry Strategy**: 
    - Suggested entry price or range
@@ -139,7 +139,7 @@ Please provide your analysis in the following structured format:
 5. **Exit Strategy**:
    - Take profit target(s)
    - Stop-loss level
-6. **Confidence Level**: (LOW / MODERATE / HIGH / VERY HIGH) with a brief explanation
+6. **Confidence Level**: 0-100 with a brief explanation
 7. **Key Risks**: List 2-3 main risks to consider
 8. **Time Horizon**: Suggested holding period (day trade / swing trade / position trade)
 
@@ -150,6 +150,10 @@ Important considerations:
 - RSI above 70 suggests overbought conditions, below 30 suggests oversold
 - MACD crossover signals can indicate trend changes
 - Volume confirmation is important for breakouts
+- Rules I often follow:
+    + 30-30-40 rule when buying: First step buy buy 30% of the intended purchase amount, second step buy 30% of the intended purchase amount, third step buy 40% of the intended purchase amount.
+    + When it break resistance zone with strong confidence, it's a good entry to buy more.
+    + After it break resistance zone, if it break support zone with strong confidence, it's a good entry to sell more.
 
 Provide clear, actionable recommendations suitable for retail traders.
 """

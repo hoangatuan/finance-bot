@@ -7,8 +7,8 @@
   "stocks": [
     {
       "symbol": "HPG",
-      "total_shares": 17000,
-      "avg_buy_price": 23.65,
+      "total_shares": 19500,
+      "avg_buy_price": 24,
       "buy_method": "cash",
       "sector": "Steel",
       "note": "Long-term hold, steel industry",
@@ -21,13 +21,22 @@
           "price": 23.65,
           "buy_method": "cash",
           "note": "Initial purchase"
+        },
+        {
+          "id": "txn_002",
+          "date": "2025-11-04T09:00:00",
+          "type": "buy",
+          "shares": 2500,
+          "price": 26.7,
+          "buy_method": "cash",
+          "note": "Buy more"
         }
       ]
     },
     {
       "symbol": "MBB",
-      "total_shares": 22400,
-      "avg_buy_price": 19.7,
+      "total_shares": 25000,
+      "avg_buy_price": 20.15,
       "buy_method": "cash",
       "sector": "Banking",
       "note": "Banking sector exposure",
@@ -40,27 +49,15 @@
           "price": 19.7,
           "buy_method": "cash",
           "note": "Initial purchase"
-        }
-      ],
-      "created_at": "2024-01-08T11:30:00",
-      "updated_at": "2024-01-12T14:20:00"
-    },
-    {
-      "symbol": "HCM",
-      "total_shares": 2000,
-      "avg_buy_price": 22.5,
-      "buy_method": "cash",
-      "sector": "Stock Brokerage",
-      "note": "Need to find a good selling point",
-      "transactions": [
+        },
         {
-          "id": "txn_001",
-          "date": "2024-01-05T09:00:00",
+          "id": "txn_002",
+          "date": "2025-11-04T09:00:00",
           "type": "buy",
-          "shares": 2000,
-          "price": 22.5,
+          "shares": 2600,
+          "price": 24.2,
           "buy_method": "cash",
-          "note": "Initial purchase"
+          "note": "Buy more"
         }
       ],
       "created_at": "2024-01-08T11:30:00",
@@ -89,8 +86,8 @@
     },
     {
       "symbol": "DXG",
-      "total_shares": 10000,
-      "avg_buy_price": 21.0,
+      "total_shares": 20000,
+      "avg_buy_price": 20.165,
       "buy_method": "cash",
       "sector": "Real estate",
       "note": "",
@@ -103,6 +100,24 @@
           "price": 21.0,
           "buy_method": "cash",
           "note": "Initial purchase"
+        },
+        {
+          "id": "txn_002",
+          "date": "2025-11-04T09:00:00",
+          "type": "buy",
+          "shares": 5000,
+          "price": 18.7,
+          "buy_method": "cash",
+          "note": "DCA"
+        },
+        {
+          "id": "txn_003",
+          "date": "2025-11-04T09:00:00",
+          "type": "buy",
+          "shares": 5000,
+          "price": 19.6,
+          "buy_method": "cash",
+          "note": "DCA"
         }
       ],
       "created_at": "2024-01-08T11:30:00",

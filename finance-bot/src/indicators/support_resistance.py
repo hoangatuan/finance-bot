@@ -1,6 +1,7 @@
 """
 Support and Resistance Zone Detection Module
 """
+import math
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
@@ -437,22 +438,20 @@ class SupportResistanceAnalyzer:
         volume_avg_50: float,
         volume_avg_200: float
     ) -> float:
-        """Calculate volume strength score (0-1)"""
-        score = 0.0
-        
-        if volume_avg_200 > 0 and current_volume > volume_avg_200:
-            score += 0.4
-        elif volume_avg_50 > 0 and current_volume > volume_avg_50:
-            score += 0.3
-        elif volume_avg_20 > 0 and current_volume > volume_avg_20:
-            score += 0.2
-        
-        # Bonus for strong volume
-        max_avg = max(volume_avg_20, volume_avg_50, volume_avg_200)
-        if max_avg > 0 and current_volume > 1.5 * max_avg:
-            score += 0.1
-        
-        return min(score, 1.0)
+        """Calculate volume strength score (0–1) with smooth scaling"""
+        avgs = [v for v in (volume_avg_20, volume_avg_50, volume_avg_200) if v > 0]
+        if not avgs or current_volume <= 0:
+            return 0.0
+
+        ratios = [current_volume / v for v in avgs]
+        base_score = min(sum(min(r, 2.0) for r in ratios) / len(ratios) / 2, 1.0)
+
+        # Extra bonus for explosive volume
+        max_avg = max(avgs)
+        ratio = current_volume / max_avg
+        bonus = min(0.1 * math.log(ratio, 1.5), 0.2) if ratio > 1 else 0
+
+        return min(base_score + bonus, 1.0)
     
     def _calculate_momentum_strength(
         self,
