@@ -1,10 +1,10 @@
 """
-Technical Analysis module for stock indicators
+Technical Analysis module for stock indicators using TA-Lib
 """
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
-import asyncio
+import talib
 
 
 class TechnicalAnalyzer:
@@ -97,7 +97,7 @@ class TechnicalAnalyzer:
     
     async def calculate_sma(self, prices: pd.Series, periods: List[int]) -> Dict[str, pd.Series]:
         """
-        Calculate Simple Moving Averages
+        Calculate Simple Moving Averages using TA-Lib
         
         Args:
             prices: Series of closing prices
@@ -109,10 +109,16 @@ class TechnicalAnalyzer:
         try:
             sma_dict = {}
             
+            # Convert pandas Series to numpy array for TA-Lib
+            close_array = prices.values.astype(np.float64)
+            
             for period in periods:
                 if period > 0 and period <= len(prices):
-                    sma = prices.rolling(window=period, min_periods=period).mean()
-                    sma_dict[f'sma_{period}'] = sma
+                    # Use TA-Lib SMA
+                    sma_array = talib.SMA(close_array, timeperiod=period)
+                    # Convert back to pandas Series with same index
+                    sma_series = pd.Series(sma_array, index=prices.index)
+                    sma_dict[f'sma_{period}'] = sma_series
                 else:
                     print(f"Warning: Invalid period {period} for SMA calculation")
             
@@ -124,7 +130,7 @@ class TechnicalAnalyzer:
     
     async def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
         """
-        Calculate Relative Strength Index using pandas built-in functions
+        Calculate Relative Strength Index using TA-Lib
         
         Args:
             prices: Series of closing prices
@@ -137,26 +143,19 @@ class TechnicalAnalyzer:
             if period <= 0 or period >= len(prices):
                 raise ValueError(f"Invalid RSI period: {period}")
             
-            # Calculate price changes
-            delta = prices.diff()
+            # Convert pandas Series to numpy array for TA-Lib
+            close_array = prices.values.astype(np.float64)
             
-            # Separate gains and losses
-            gains = delta.where(delta > 0, 0)
-            losses = -delta.where(delta < 0, 0)
-            
-            # Calculate average gains and losses
-            avg_gains = gains.rolling(window=period, min_periods=period).mean()
-            avg_losses = losses.rolling(window=period, min_periods=period).mean()
-            
-            # Calculate RSI
-            rs = avg_gains / avg_losses
-            rsi = 100 - (100 / (1 + rs))
+            # Use TA-Lib RSI
+            rsi_array = talib.RSI(close_array, timeperiod=period)
+            # Convert back to pandas Series with same index
+            rsi_series = pd.Series(rsi_array, index=prices.index)
             
             # Validate output
-            if rsi.isnull().all():
+            if rsi_series.isnull().all():
                 raise ValueError(f"RSI calculation failed for period {period}")
             
-            return rsi
+            return rsi_series
             
         except Exception as e:
             print(f"Error calculating RSI: {e}")
@@ -170,7 +169,7 @@ class TechnicalAnalyzer:
         signal: int = 9
     ) -> Dict[str, pd.Series]:
         """
-        Calculate MACD, Signal, and Histogram using pandas built-in functions
+        Calculate MACD, Signal, and Histogram using TA-Lib
         
         Args:
             prices: Series of closing prices
@@ -188,18 +187,21 @@ class TechnicalAnalyzer:
             if fast >= slow:
                 raise ValueError(f"Fast period ({fast}) must be less than slow period ({slow})")
             
-            # Calculate EMAs
-            ema_fast = prices.ewm(span=fast, adjust=False).mean()
-            ema_slow = prices.ewm(span=slow, adjust=False).mean()
+            # Convert pandas Series to numpy array for TA-Lib
+            close_array = prices.values.astype(np.float64)
             
-            # Calculate MACD line
-            macd_line = ema_fast - ema_slow
+            # Use TA-Lib MACD (returns macd, signal, histogram)
+            macd_array, signal_array, histogram_array = talib.MACD(
+                close_array,
+                fastperiod=fast,
+                slowperiod=slow,
+                signalperiod=signal
+            )
             
-            # Calculate Signal line (EMA of MACD)
-            macd_signal = macd_line.ewm(span=signal, adjust=False).mean()
-            
-            # Calculate Histogram
-            macd_histogram = macd_line - macd_signal
+            # Convert back to pandas Series with same index
+            macd_line = pd.Series(macd_array, index=prices.index)
+            macd_signal = pd.Series(signal_array, index=prices.index)
+            macd_histogram = pd.Series(histogram_array, index=prices.index)
             
             macd_dict = {
                 'macd': macd_line,
@@ -261,14 +263,20 @@ class TechnicalAnalyzer:
             # Volume change percentage
             volume_dict['volume_change_pct'] = volume.pct_change() * 100
             
-            # Price-volume trend (PVT) - Fixed calculation
+            # Price-volume trend (PVT) - Custom calculation (not in TA-Lib)
             price_change_pct = close.pct_change()
             pvt = (price_change_pct * volume).cumsum()
             volume_dict['pvt'] = pvt
             
-            # On-balance volume (OBV)
-            price_diff = close.diff()
-            obv = (np.sign(price_diff) * volume).cumsum()
+            # On-balance volume (OBV) - Use TA-Lib
+            # Convert to numpy arrays for TA-Lib
+            close_array = close.values.astype(np.float64)
+            volume_array = volume.values.astype(np.float64)
+            
+            # Use TA-Lib OBV
+            obv_array = talib.OBV(close_array, volume_array)
+            # Convert back to pandas Series with same index
+            obv = pd.Series(obv_array, index=df.index)
             volume_dict['obv'] = obv
             
             return volume_dict
