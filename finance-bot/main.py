@@ -7,7 +7,7 @@ import asyncio
 import sys
 import os
 from datetime import datetime, date, timedelta
-from typing import Dict, List
+from typing import Dict
 import pandas as pd
 
 # Add src to path
@@ -105,11 +105,10 @@ async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: 
     print("\n🛡️ Analyzing Support & Resistance Zones...")
     
     try:
-        # Get current price (validate against historical)
-        historical_close = df.iloc[-1]['close']
-        current_price = await get_current_price(ticker, historical_close)
+        # Get current price
+        current_price = await get_current_price(ticker)
         if current_price is None:
-            current_price = historical_close
+            current_price = df.iloc[-1]['close']
             print(f"📊 Using latest historical close as current price: {current_price:,.2f}")
         
         # Create SR analyzer
@@ -203,82 +202,11 @@ async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: 
         return None
 
 
-async def analyze_trading_signals(df: pd.DataFrame):
-    """Analyze basic trading signals from the indicators"""
-    print("\n🎯 Analyzing Trading Signals...")
-    
-    try:
-        if df.empty:
-            print("❌ No data for signal analysis")
-            return []
-        
-        latest = df.iloc[-1]
-        close_price = latest['close']
-        
-        signals = []
-        
-        # RSI Analysis
-        rsi = latest.get('rsi_14')
-        if pd.notna(rsi):
-            if rsi < 30:
-                signals.append("🔴 RSI Oversold (< 30) - Potential Buy Signal")
-            elif rsi > 70:
-                signals.append("🟡 RSI Overbought (> 70) - Potential Sell Signal")
-            else:
-                signals.append(f"🟢 RSI Neutral ({rsi:.1f})")
-        
-        # SMA Analysis
-        sma_20 = latest.get('sma_20')
-        sma_50 = latest.get('sma_50')
-        
-        if pd.notna(sma_20) and pd.notna(sma_50):
-            if close_price > sma_20 > sma_50:
-                signals.append("🟢 Bullish Trend - Price above both SMAs")
-            elif close_price < sma_20 < sma_50:
-                signals.append("🔴 Bearish Trend - Price below both SMAs")
-            elif close_price > sma_20:
-                signals.append("🟡 Mixed - Price above SMA(20) but below SMA(50)")
-            else:
-                signals.append("🟡 Mixed - Price below SMA(20)")
-        
-        # MACD Analysis
-        macd = latest.get('macd')
-        macd_signal = latest.get('macd_signal')
-        
-        if pd.notna(macd) and pd.notna(macd_signal):
-            if macd > macd_signal:
-                signals.append("🟢 MACD Bullish - MACD above Signal")
-            else:
-                signals.append("🔴 MACD Bearish - MACD below Signal")
-        
-        # Volume Analysis
-        volume_ratio = latest.get('volume_ratio')
-        if pd.notna(volume_ratio):
-            if volume_ratio > 1.5:
-                signals.append("📈 High Volume - Above average trading activity")
-            elif volume_ratio < 0.5:
-                signals.append("📉 Low Volume - Below average trading activity")
-        
-        print("📊 Trading Signals:")
-        for signal in signals:
-            print(f"   {signal}")
-        
-        if not signals:
-            print("   ⚪ No clear signals detected")
-        
-        return signals
-            
-    except Exception as e:
-        print(f"❌ Error analyzing trading signals: {e}")
-        return []
-
-
 async def get_ai_suggestions(
     ticker: str,
     current_price: float,
     indicators: Dict,
     zones: Dict,
-    signals: List[str],
     df: pd.DataFrame
 ):
     """
@@ -289,7 +217,6 @@ async def get_ai_suggestions(
         current_price: Current stock price
         indicators: Dictionary with latest indicator values
         zones: Dictionary with support/resistance zones
-        signals: List of trading signals
         df: DataFrame with historical data for recent price action
     
     Returns:
@@ -317,13 +244,12 @@ async def get_ai_suggestions(
                 'trend': 'uptrend' if df['close'].iloc[-1] > df['close'].iloc[-10] else 'downtrend'
             }
         
-        # Get AI suggestions
+        # Get AI suggestions (AI will analyze indicators directly)
         suggestions = await ai_analyzer.get_trading_suggestions(
             ticker=ticker,
             current_price=current_price,
             indicators=indicators,
             zones=zones,
-            signals=signals,
             recent_price_action=recent_price_action
         )
         
@@ -371,10 +297,9 @@ async def test_support_resistance_analysis(ticker: str = 'HPG'):
         
         # Step 2: Get current price
         print(f"\n💰 Step 2: Getting current price...")
-        historical_close = historical_df.iloc[-1]['close']
-        current_price = await get_current_price(ticker, historical_close)
+        current_price = await get_current_price(ticker)
         if current_price is None:
-            current_price = historical_close
+            current_price = historical_df.iloc[-1]['close']
             print(f"📊 Using latest historical close: {current_price:,.2f}")
         
         # Step 3: Run technical analysis
@@ -398,17 +323,13 @@ async def test_support_resistance_analysis(ticker: str = 'HPG'):
         else:
             print(f"\n⚠️  Support/Resistance analysis completed with warnings")
         
-        # Step 6: Get trading signals
-        signals = await analyze_trading_signals(processed_df)
-        
-        # Step 7: Get AI suggestions
+        # Step 6: Get AI suggestions (AI will analyze indicators directly)
         if zones:
             await get_ai_suggestions(
                 ticker=ticker,
                 current_price=current_price,
                 indicators=latest_indicators,
                 zones=zones,
-                signals=signals or [],
                 df=processed_df
             )
         
@@ -437,15 +358,12 @@ async def main():
         print("❌ Failed to run technical analysis. Exiting.")
         return
     
-    # Step 3: Analyze trading signals
-    signals = await analyze_trading_signals(analyzed_data)
-    
-    # Step 4: Get AI suggestions (if OpenAI API key is configured)
+    # Step 3: Get AI suggestions (if OpenAI API key is configured)
+    # AI will analyze indicators directly without manual signal analysis
     latest_indicators = analyzed_data.iloc[-1].to_dict()
-    historical_close = analyzed_data.iloc[-1]['close']
-    current_price = await get_current_price('HPG', historical_close)
+    current_price = await get_current_price('HPG')
     if current_price is None:
-        current_price = historical_close
+        current_price = analyzed_data.iloc[-1]['close']
     
     # Get basic zones for AI analysis (simplified version)
     zones = {'resistance_zones': [], 'support_zones': []}
@@ -455,7 +373,6 @@ async def main():
         current_price=current_price,
         indicators=latest_indicators,
         zones=zones,
-        signals=signals or [],
         df=analyzed_data
     )
     

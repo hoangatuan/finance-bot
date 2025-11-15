@@ -183,6 +183,15 @@ class VNStockFetcher(BaseFetcher):
             if old_col in df.columns:
                 df = df.rename(columns={old_col: new_col})
         
+        # Convert historical data from decimal form to full form (multiply by 1000)
+        # Historical API returns prices in decimal form (e.g., 90.20 = ~90200 VND)
+        # Other APIs return in full form (90200), so we normalize historical to match
+        if data_type == 'historical':
+            price_columns = ['open', 'high', 'low', 'close']
+            for col in price_columns:
+                if col in df.columns:
+                    df[col] = df[col] * 1000
+        
         # Add metadata columns
         df['ticker'] = ticker
         df['source'] = 'vnstock'

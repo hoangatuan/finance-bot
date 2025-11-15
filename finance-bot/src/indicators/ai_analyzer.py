@@ -4,7 +4,7 @@ OpenAI AI Analyzer for generating trading suggestions based on technical analysi
 import os
 import json
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 import pandas as pd
 from openai import OpenAI
 
@@ -33,7 +33,6 @@ class OpenAIAnalyzer:
                              current_price: float,
                              indicators: Dict,
                              zones: Dict,
-                             signals: List[str],
                              recent_price_action: Optional[Dict] = None) -> str:
         """
         Format technical analysis data into a structured prompt for OpenAI
@@ -43,7 +42,6 @@ class OpenAIAnalyzer:
             current_price: Current stock price
             indicators: Dictionary with latest indicator values
             zones: Dictionary with support/resistance zones
-            signals: List of trading signals
             recent_price_action: Optional recent price action summary
         
         Returns:
@@ -56,18 +54,40 @@ class OpenAIAnalyzer:
         
         # Technical Indicators
         lines.append("\n### Technical Indicators:")
-        if pd.notna(indicators.get('sma_20')):
-            lines.append(f"- SMA(20): {indicators['sma_20']:,.2f}")
-        if pd.notna(indicators.get('sma_50')):
-            lines.append(f"- SMA(50): {indicators['sma_50']:,.2f}")
-        if pd.notna(indicators.get('rsi_14')):
-            lines.append(f"- RSI(14): {indicators['rsi_14']:.2f}")
+        
+        # SMA indicators (dynamic - handles any SMA period)
+        sma_indicators = {k: v for k, v in indicators.items() if k.startswith('sma_')}
+        for key, value in sorted(sma_indicators.items()):
+            if pd.notna(value):
+                period = key.replace('sma_', '')
+                lines.append(f"- SMA({period}): {value:,.2f}")
+        
+        # RSI indicators (dynamic - handles any RSI period)
+        rsi_indicators = {k: v for k, v in indicators.items() if k.startswith('rsi_')}
+        for key, value in sorted(rsi_indicators.items()):
+            if pd.notna(value):
+                period = key.replace('rsi_', '')
+                lines.append(f"- RSI({period}): {value:.2f}")
+        
+        # MACD indicators
         if pd.notna(indicators.get('macd')):
             lines.append(f"- MACD: {indicators['macd']:.2f}")
         if pd.notna(indicators.get('macd_signal')):
             lines.append(f"- MACD Signal: {indicators['macd_signal']:.2f}")
+        if pd.notna(indicators.get('macd_histogram')):
+            lines.append(f"- MACD Histogram: {indicators['macd_histogram']:.2f}")
+        
+        # Volume indicators
         if pd.notna(indicators.get('volume_ratio')):
             lines.append(f"- Volume Ratio: {indicators['volume_ratio']:.2f}")
+        if pd.notna(indicators.get('volume_sma')):
+            lines.append(f"- Volume SMA: {indicators['volume_sma']:,.0f}")
+        if pd.notna(indicators.get('volume_change_pct')):
+            lines.append(f"- Volume Change %: {indicators['volume_change_pct']:.2f}%")
+        if pd.notna(indicators.get('pvt')):
+            lines.append(f"- Price-Volume Trend (PVT): {indicators['pvt']:,.2f}")
+        if pd.notna(indicators.get('obv')):
+            lines.append(f"- On-Balance Volume (OBV): {indicators['obv']:,.0f}")
         
         # Support/Resistance Zones
         if zones:
@@ -94,12 +114,6 @@ class OpenAIAnalyzer:
                     )
                     if 'confidence_score' in zone:
                         lines.append(f"   Confidence: {zone['confidence_score']:.2f} - {zone.get('interpretation', 'N/A')}")
-        
-        # Trading Signals
-        if signals:
-            lines.append("\n### Current Trading Signals:")
-            for signal in signals:
-                lines.append(f"- {signal}")
         
         # Recent Price Action
         if recent_price_action:
@@ -164,7 +178,6 @@ Provide clear, actionable recommendations suitable for retail traders.
                                      current_price: float,
                                      indicators: Dict,
                                      zones: Optional[Dict] = None,
-                                     signals: Optional[List[str]] = None,
                                      recent_price_action: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Get trading suggestions from OpenAI based on technical analysis
@@ -174,7 +187,6 @@ Provide clear, actionable recommendations suitable for retail traders.
             current_price: Current stock price
             indicators: Dictionary with latest indicator values
             zones: Optional dictionary with support/resistance zones
-            signals: Optional list of trading signals
             recent_price_action: Optional recent price action summary
         
         Returns:
@@ -183,7 +195,7 @@ Provide clear, actionable recommendations suitable for retail traders.
         try:
             # Format technical data
             technical_data = self.format_technical_data(
-                ticker, current_price, indicators, zones or {}, signals or [], recent_price_action
+                ticker, current_price, indicators, zones or {}, recent_price_action
             )
             
             # Create prompt

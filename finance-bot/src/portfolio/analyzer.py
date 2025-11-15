@@ -121,24 +121,14 @@ async def run_daily_analysis(
                 continue
             
             # Get current price
-            # Note: VNStock returns prices in thousands format (e.g., 26.05 = 26,050 VND)
+            # Note: Historical data is normalized to full format (VND) in the fetcher
+            # Real-time API also returns prices in full format (VND)
             # Portfolio prices are stored in storage format (divided by 1000) in JSON,
             # but load_portfolio() converts them to full format (VND) for internal use.
-            # So we need to ensure current_price is also in full format (VND) for calculations.
-            historical_close = historical_df.iloc[-1]['close']
-            current_price_raw = await get_current_price(symbol, historical_close, verbose=False)
-            if current_price_raw is None:
-                current_price_raw = historical_close
-            
-            # VNStock returns prices in thousands (e.g., 26.05 = 26,050 VND)
-            # Convert to full VND format for consistency with portfolio prices
-            # Check if price seems to be in thousands (< 1000) vs full format
-            if current_price_raw < 1000:
-                # Likely in thousands format, convert to full VND
-                current_price = current_price_raw * 1000
-            else:
-                # Already in full VND format
-                current_price = current_price_raw
+            current_price = await get_current_price(symbol, verbose=False)
+            if current_price is None:
+                # Fallback to latest historical close if real-time price unavailable
+                current_price = historical_df.iloc[-1]['close']
             
             # Run technical analysis
             if verbose:

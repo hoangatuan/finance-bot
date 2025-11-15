@@ -3,7 +3,6 @@ Data fetching utilities for stock market analysis
 """
 import pandas as pd
 from datetime import date, timedelta
-from typing import Optional
 
 try:
     from ..fetcher.fetcher_factory import FetcherFactory
@@ -79,13 +78,12 @@ async def fetch_extended_historical(ticker: str, days: int = 250, verbose: bool 
         return None
 
 
-async def get_current_price(ticker: str, historical_close: Optional[float] = None, verbose: bool = True):
+async def get_current_price(ticker: str, verbose: bool = True):
     """
     Get current real-time price
     
     Args:
         ticker: Stock symbol
-        historical_close: Historical close price for validation
         verbose: If True, print progress messages
     
     Returns:
@@ -98,27 +96,16 @@ async def get_current_price(ticker: str, historical_close: Optional[float] = Non
         if realtime_data and len(realtime_data) > 0:
             current_price = realtime_data[0].close
             
-            # Validate price format - VNStock might return prices in different units
-            # If real-time price is way different from historical, use historical instead
-            if historical_close and historical_close > 0:
-                price_ratio = current_price / historical_close
-                # If price differs by more than 10x, likely wrong unit
-                if price_ratio > 10 or price_ratio < 0.1:
-                    if verbose:
-                        print(f"⚠️  Real-time price ({current_price:,.2f}) seems inconsistent with historical ({historical_close:,.2f})")
-                        print(f"    Using historical close price instead")
-                    return historical_close
-            
             if verbose:
                 print(f"✅ Current price for {ticker}: {current_price:,.2f}")
             return current_price
         else:
             if verbose:
-                print(f"⚠️  Real-time price unavailable for {ticker}, will use latest historical close")
+                print(f"⚠️  Real-time price unavailable for {ticker}")
             return None
             
     except Exception as e:
         if verbose:
-            print(f"⚠️  Error fetching real-time price: {e}, will use latest historical close")
+            print(f"⚠️  Error fetching real-time price: {e}")
         return None
 
