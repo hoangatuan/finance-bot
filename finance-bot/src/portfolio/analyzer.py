@@ -141,8 +141,7 @@ async def run_daily_analysis(
                 rsi_period=14,
                 macd_fast=12,
                 macd_slow=26,
-                macd_signal=9,
-                volume_avg_period=20
+                macd_signal=9
             )
             
             if processed_df.empty:

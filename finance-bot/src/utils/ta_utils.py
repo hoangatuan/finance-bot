@@ -49,8 +49,7 @@ async def run_technical_analysis(df: pd.DataFrame, ticker: Optional[str] = None)
             rsi_period=14,         # 14-day RSI
             macd_fast=12,          # MACD fast period
             macd_slow=26,          # MACD slow period
-            macd_signal=9,         # MACD signal period
-            volume_avg_period=20   # 20-day volume average
+            macd_signal=9          # MACD signal period
         )
         
         if processed_df.empty:
@@ -68,7 +67,8 @@ async def run_technical_analysis(df: pd.DataFrame, ticker: Optional[str] = None)
         print(f"   RSI(14): {latest_indicators.get('rsi_14', 'N/A'):.2f}" if pd.notna(latest_indicators.get('rsi_14')) else "   RSI(14): N/A")
         print(f"   MACD: {latest_indicators.get('macd', 'N/A'):.2f}" if pd.notna(latest_indicators.get('macd')) else "   MACD: N/A")
         print(f"   MACD Signal: {latest_indicators.get('macd_signal', 'N/A'):.2f}" if pd.notna(latest_indicators.get('macd_signal')) else "   MACD Signal: N/A")
-        print(f"   Volume Ratio: {latest_indicators.get('volume_ratio', 'N/A'):.2f}" if pd.notna(latest_indicators.get('volume_ratio')) else "   Volume Ratio: N/A")
+        print(f"   Volume Ratio (20): {latest_indicators.get('vol_ratio_20', 'N/A'):.2f}" if pd.notna(latest_indicators.get('vol_ratio_20')) else "   Volume Ratio (20): N/A")
+        print(f"   Volume Ratio (50): {latest_indicators.get('vol_ratio_50', 'N/A'):.2f}" if pd.notna(latest_indicators.get('vol_ratio_50')) else "   Volume Ratio (50): N/A")
         
         # Get indicators summary
         summary = pipeline.get_indicators_summary(processed_df)

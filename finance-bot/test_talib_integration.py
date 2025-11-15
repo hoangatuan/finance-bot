@@ -6,6 +6,7 @@ import asyncio
 import sys
 import os
 import pandas as pd
+import numpy as np
 
 # Add src to path
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
@@ -213,13 +214,15 @@ async def test_macd(ticker: str = 'HPG'):
 
 
 async def test_volume_analysis(ticker: str = 'HPG'):
-    """Test volume analysis including OBV with real data"""
+    """Test volume analysis with real data"""
     print("\n📊 Testing Volume Analysis...")
-    print("   📖 OBV (On-Balance Volume) Explanation:")
-    print("      - Cumulative indicator: adds volume on up days, subtracts on down days")
-    print("      - Positive OBV = more buying pressure (up days)")
-    print("      - Negative OBV = more selling pressure (down days)")
-    print("      - The absolute value is less important than the trend direction")
+    print("   📖 Volume Indicators:")
+    print("      - vol_sma20: 20-period volume moving average")
+    print("      - vol_sma50: 50-period volume moving average")
+    print("      - vol_ratio_20: current volume / vol_sma20")
+    print("      - vol_ratio_50: current volume / vol_sma50")
+    print("      - Ratio > 1.0 = above average volume (high activity)")
+    print("      - Ratio < 1.0 = below average volume (low activity)")
     print()
     
     # Fetch real data
@@ -232,69 +235,62 @@ async def test_volume_analysis(ticker: str = 'HPG'):
     
     print(f"   ✅ Fetched {len(df)} records")
     
-    # Show price trend for context
-    first_close = df['close'].iloc[0]
-    last_close = df['close'].iloc[-1]
-    price_change = last_close - first_close
-    price_change_pct = (price_change / first_close) * 100
-    
-    print(f"   Price trend: {first_close:,.2f} → {last_close:,.2f} ({price_change_pct:+.2f}%)")
+    # Show current volume for context
+    current_volume = df['volume'].iloc[-1]
+    print(f"   Current volume: {current_volume:,.0f}")
     
     analyzer = TechnicalAnalyzer()
     
     try:
-        volume_data = await analyzer.calculate_volume_analysis(df, 20)
+        volume_data = await analyzer.calculate_volume_analysis(df)
         
-        expected_keys = ['volume_sma', 'volume_ratio', 'volume_change_pct', 'pvt', 'obv']
+        expected_keys = ['vol_sma20', 'vol_sma50', 'vol_ratio_20', 'vol_ratio_50']
         missing_keys = [k for k in expected_keys if k not in volume_data]
         
         if missing_keys:
             print(f"   ⚠️  Missing keys: {missing_keys}")
+            return False
         else:
             print("   ✅ All volume indicators calculated")
         
-        # Test OBV specifically
-        if 'obv' in volume_data:
-            obv_series = volume_data['obv']
-            obv_val = obv_series.iloc[-1]
-            # Find first valid (non-NaN) OBV value
-            first_valid_idx = obv_series.first_valid_index()
-            obv_first = obv_series.loc[first_valid_idx] if first_valid_idx is not None else 0
-            obv_change = obv_val - obv_first
-            
-            print(f"\n   OBV Analysis:")
-            print(f"      First OBV value: {obv_first:,.0f}")
-            print(f"      Last OBV value: {obv_val:,.0f}")
-            print(f"      OBV change: {obv_change:,.0f}")
-            
-            # Interpret OBV
-            if obv_val < 0:
-                print(f"      📉 Negative OBV ({obv_val:,.0f}) indicates net selling pressure")
-                print(f"         This aligns with {'price decline' if price_change < 0 else 'price increase'}")
-            else:
-                print(f"      📈 Positive OBV ({obv_val:,.0f}) indicates net buying pressure")
-            
-            # Check OBV trend vs price trend
-            if (obv_change > 0 and price_change > 0) or (obv_change < 0 and price_change < 0):
-                print(f"      ✅ OBV trend confirms price trend (both {'up' if obv_change > 0 else 'down'})")
-            else:
-                print(f"      ⚠️  OBV trend diverges from price trend (possible reversal signal)")
-            
-            # Calculate average daily volume for context
-            avg_volume = df['volume'].mean()
-            print(f"\n   Volume Context:")
-            print(f"      Average daily volume: {avg_volume:,.0f}")
-            print(f"      OBV magnitude vs avg volume: {abs(obv_val) / avg_volume:.1f}x")
-            print(f"      (OBV is cumulative, so large values are normal)")
-            
-            if pd.notna(obv_val):
-                print("\n   ✅ OBV value is valid (not NaN)")
-                return True
-            else:
-                print("   ❌ OBV value is NaN")
-                return False
+        # Get latest values
+        vol_sma20 = volume_data['vol_sma20'].iloc[-1]
+        vol_sma50 = volume_data['vol_sma50'].iloc[-1]
+        vol_ratio_20 = volume_data['vol_ratio_20'].iloc[-1]
+        vol_ratio_50 = volume_data['vol_ratio_50'].iloc[-1]
+        
+        print(f"\n   Volume Indicators (latest values):")
+        print(f"      vol_sma20: {vol_sma20:,.0f}")
+        print(f"      vol_sma50: {vol_sma50:,.0f}")
+        print(f"      vol_ratio_20: {vol_ratio_20:.2f} ({'📈 Above average' if vol_ratio_20 > 1.0 else '📉 Below average'})")
+        print(f"      vol_ratio_50: {vol_ratio_50:.2f} ({'📈 Above average' if vol_ratio_50 > 1.0 else '📉 Below average'})")
+        
+        # Verify calculations
+        calculated_ratio_20 = current_volume / vol_sma20 if vol_sma20 > 0 else np.nan
+        calculated_ratio_50 = current_volume / vol_sma50 if vol_sma50 > 0 else np.nan
+        
+        ratio_20_match = abs(vol_ratio_20 - calculated_ratio_20) < 0.01 if pd.notna(calculated_ratio_20) else False
+        ratio_50_match = abs(vol_ratio_50 - calculated_ratio_50) < 0.01 if pd.notna(calculated_ratio_50) else False
+        
+        print(f"\n   Verification:")
+        print(f"      vol_ratio_20 calculation: {current_volume:,.0f} / {vol_sma20:,.0f} = {calculated_ratio_20:.2f}")
+        if ratio_20_match:
+            print(f"      ✅ vol_ratio_20 is correct")
         else:
-            print("   ❌ OBV key missing")
+            print(f"      ⚠️  vol_ratio_20 mismatch (expected: {calculated_ratio_20:.2f}, got: {vol_ratio_20:.2f})")
+        
+        print(f"      vol_ratio_50 calculation: {current_volume:,.0f} / {vol_sma50:,.0f} = {calculated_ratio_50:.2f}")
+        if ratio_50_match:
+            print(f"      ✅ vol_ratio_50 is correct")
+        else:
+            print(f"      ⚠️  vol_ratio_50 mismatch (expected: {calculated_ratio_50:.2f}, got: {vol_ratio_50:.2f})")
+        
+        # Validate all values
+        if all(pd.notna(v) for v in [vol_sma20, vol_sma50, vol_ratio_20, vol_ratio_50]):
+            print("\n   ✅ All volume values are valid (not NaN)")
+            return True
+        else:
+            print("\n   ❌ Some volume values are NaN")
             return False
             
     except Exception as e:
@@ -327,12 +323,12 @@ async def test_all_indicators_together(ticker: str = 'HPG'):
             rsi_period=14,
             macd_fast=12,
             macd_slow=26,
-            macd_signal=9,
-            volume_avg_period=20
+            macd_signal=9
         )
         
         # Check for expected keys
-        expected_keys = ['sma_20', 'sma_50', 'rsi_14', 'macd', 'macd_signal', 'macd_histogram', 'obv']
+        expected_keys = ['sma_20', 'sma_50', 'rsi_14', 'macd', 'macd_signal', 'macd_histogram', 
+                         'vol_sma20', 'vol_sma50', 'vol_ratio_20', 'vol_ratio_50']
         found_keys = [k for k in expected_keys if k in all_indicators]
         
         print(f"   ✅ Found {len(found_keys)}/{len(expected_keys)} expected indicators")

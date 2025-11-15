@@ -96,7 +96,7 @@ async def test_technical_analyzer():
         
         # Test volume analysis
         print("\nTesting volume analysis...")
-        volume_data = await analyzer.calculate_volume_analysis(df, 20)
+        volume_data = await analyzer.calculate_volume_analysis(df)
         print(f"✅ Volume analysis: {list(volume_data.keys())}")
         
         # Test all indicators together
@@ -107,8 +107,7 @@ async def test_technical_analyzer():
             rsi_period=14,
             macd_fast=12,
             macd_slow=26,
-            macd_signal=9,
-            volume_avg_period=20
+            macd_signal=9
         )
         
         print(f"✅ All indicators calculated: {len(all_indicators)} total")
@@ -151,8 +150,7 @@ async def test_indicator_pipeline():
             rsi_period=14,
             macd_fast=12,
             macd_slow=26,
-            macd_signal=9,
-            volume_avg_period=20
+            macd_signal=9
         )
         
         print(f"✅ Historical data processed: {len(processed_df)} records")
@@ -247,8 +245,7 @@ async def test_batch_processing():
             rsi_period=14,
             macd_fast=12,
             macd_slow=26,
-            macd_signal=9,
-            volume_avg_period=20
+            macd_signal=9
         )
         
         print(f"✅ Batch processing completed: {len(results)} tickers")

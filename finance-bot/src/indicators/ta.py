@@ -22,8 +22,7 @@ class TechnicalAnalyzer:
         rsi_period: int = 14,
         macd_fast: int = 12,
         macd_slow: int = 26,
-        macd_signal: int = 9,
-        volume_avg_period: int = 20
+        macd_signal: int = 9
     ) -> Dict:
         """
         Calculate all indicators with custom parameters
@@ -36,7 +35,6 @@ class TechnicalAnalyzer:
             macd_fast: Fast period for MACD
             macd_slow: Slow period for MACD
             macd_signal: Signal period for MACD
-            volume_avg_period: Period for volume average calculation
             
         Returns:
             Dictionary containing all calculated indicators
@@ -71,9 +69,8 @@ class TechnicalAnalyzer:
                 indicators.update(macd_data)
             
             # Volume analysis
-            if volume_avg_period:
-                volume_data = await self.calculate_volume_analysis(df, volume_avg_period)
-                indicators.update(volume_data)
+            volume_data = await self.calculate_volume_analysis(df)
+            indicators.update(volume_data)
             
             # Add metadata
             indicators['metadata'] = {
@@ -84,8 +81,7 @@ class TechnicalAnalyzer:
                     'rsi_period': rsi_period,
                     'macd_fast': macd_fast,
                     'macd_slow': macd_slow,
-                    'macd_signal': macd_signal,
-                    'volume_avg_period': volume_avg_period
+                    'macd_signal': macd_signal
                 }
             }
             
@@ -222,62 +218,50 @@ class TechnicalAnalyzer:
     
     async def calculate_volume_analysis(
         self, 
-        df: pd.DataFrame, 
-        avg_period: int = 20
+        df: pd.DataFrame
     ) -> Dict[str, pd.Series]:
         """
         Calculate volume-based indicators
         
         Args:
             df: DataFrame with OHLCV data
-            avg_period: Period for volume average calculation
             
         Returns:
-            Dictionary with volume indicators
+            Dictionary with volume indicators:
+            - vol_sma20: 20-period volume moving average
+            - vol_sma50: 50-period volume moving average
+            - vol_ratio_20: current volume / vol_sma20
+            - vol_ratio_50: current volume / vol_sma50
         """
         try:
             if 'volume' not in df.columns:
                 raise ValueError("Volume column not found in dataframe")
             
             volume = df['volume']
-            close = df['close']
-            
             volume_dict = {}
             
-            # Volume moving average
-            if avg_period > 0 and avg_period <= len(volume):
-                volume_dict['volume_sma'] = volume.rolling(window=avg_period, min_periods=avg_period).mean()
-            else:
-                volume_dict['volume_sma'] = pd.Series(index=volume.index, dtype=float)
-            
-            # Volume ratio (current volume / average volume)
-            if 'volume_sma' in volume_dict and not volume_dict['volume_sma'].isnull().all():
-                volume_sma_series = volume_dict['volume_sma']
-                if isinstance(volume_sma_series, pd.Series):
-                    volume_dict['volume_ratio'] = volume / volume_sma_series
+            # Volume moving averages for 20 and 50 periods
+            periods = [20, 50]
+            for period in periods:
+                if period > 0 and period <= len(volume):
+                    volume_dict[f'vol_sma{period}'] = volume.rolling(window=period, min_periods=period).mean()
                 else:
-                    volume_dict['volume_ratio'] = pd.Series(index=volume.index, dtype=float)
-            else:
-                volume_dict['volume_ratio'] = pd.Series(index=volume.index, dtype=float)
+                    volume_dict[f'vol_sma{period}'] = pd.Series(index=volume.index, dtype=float)
             
-            # Volume change percentage
-            volume_dict['volume_change_pct'] = volume.pct_change() * 100
-            
-            # Price-volume trend (PVT) - Custom calculation (not in TA-Lib)
-            price_change_pct = close.pct_change()
-            pvt = (price_change_pct * volume).cumsum()
-            volume_dict['pvt'] = pvt
-            
-            # On-balance volume (OBV) - Use TA-Lib
-            # Convert to numpy arrays for TA-Lib
-            close_array = close.values.astype(np.float64)
-            volume_array = volume.values.astype(np.float64)
-            
-            # Use TA-Lib OBV
-            obv_array = talib.OBV(close_array, volume_array)
-            # Convert back to pandas Series with same index
-            obv = pd.Series(obv_array, index=df.index)
-            volume_dict['obv'] = obv
+            # Volume ratios: current volume / moving average
+            for period in periods:
+                sma_key = f'vol_sma{period}'
+                ratio_key = f'vol_ratio_{period}'
+                
+                if sma_key in volume_dict and not volume_dict[sma_key].isnull().all():
+                    volume_sma_series = volume_dict[sma_key]
+                    if isinstance(volume_sma_series, pd.Series):
+                        # Avoid division by zero
+                        volume_dict[ratio_key] = volume / volume_sma_series.replace(0, np.nan)
+                    else:
+                        volume_dict[ratio_key] = pd.Series(index=volume.index, dtype=float)
+                else:
+                    volume_dict[ratio_key] = pd.Series(index=volume.index, dtype=float)
             
             return volume_dict
             
