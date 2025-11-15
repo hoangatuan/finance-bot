@@ -641,4 +641,103 @@ class SupportResistanceAnalyzer:
             return "Low Confidence - Weak signal"
         else:
             return "Very Low Confidence - False breakout likely"
+    
+    async def analyze_support_resistance(
+        self,
+        ticker: str,
+        df: pd.DataFrame,
+        indicators: Dict,
+        current_price: Optional[float] = None
+    ) -> Dict:
+        """
+        Complete support and resistance analysis
+        
+        This method performs the full analysis and returns the top 3 resistance
+        and top 3 support zones sorted by strength/confidence score.
+        
+        Args:
+            ticker: Stock symbol
+            df: DataFrame with historical data and indicators
+            indicators: Dictionary with latest indicator values (RSI, MACD, etc.)
+            current_price: Current stock price. If None, uses latest close from df.
+        
+        Returns:
+            Dictionary with:
+            - resistance_zones: List of top 3 resistance zones (sorted by strength desc)
+            - support_zones: List of top 3 support zones (sorted by strength desc)
+            - current_price: Current price used for analysis
+            Each zone includes: middle, upper, lower, strength, touch_count, distance_pct,
+            confidence_score, and other zone metadata
+        """
+        try:
+            # Get current price if not provided
+            if current_price is None:
+                current_price = float(df.iloc[-1]['close'])
+            
+            # Find pivots
+            pivots = await self.find_pivots(df, left_bars=5, right_bars=5)
+            
+            # Create zones (include touching levels detection for consolidation zones)
+            zones = await self.create_pivot_zones(
+                pivots,
+                current_price,
+                df=df,
+                tolerance_percent=1.5,
+                min_touches=2,
+                include_touching_levels=True
+            )
+            
+            # Calculate confidence scores for all zones
+            resistance_zones = zones.get('resistance_zones', [])
+            support_zones = zones.get('support_zones', [])
+            
+            # Add confidence scores to resistance zones
+            for zone in resistance_zones:
+                confidence_data = await self.calculate_breakout_confidence(
+                    zone, indicators, df, is_resistance=True
+                )
+                zone['confidence_score'] = confidence_data['confidence_score']
+                zone['confidence_breakdown'] = confidence_data['breakdown']
+                zone['confidence_interpretation'] = confidence_data['interpretation']
+                zone['interpretation'] = confidence_data['interpretation']  # Alias for AI analyzer compatibility
+            
+            # Add confidence scores to support zones
+            for zone in support_zones:
+                confidence_data = await self.calculate_breakout_confidence(
+                    zone, indicators, df, is_resistance=False
+                )
+                zone['confidence_score'] = confidence_data['confidence_score']
+                zone['confidence_breakdown'] = confidence_data['breakdown']
+                zone['confidence_interpretation'] = confidence_data['interpretation']
+                zone['interpretation'] = confidence_data['interpretation']  # Alias for AI analyzer compatibility
+            
+            # Sort by strength (primary) and confidence_score (secondary), descending
+            # Use a combined score: strength * 0.6 + confidence_score * 0.4
+            def get_sort_score(zone: Dict) -> float:
+                strength = zone.get('strength', 0.0)
+                confidence = zone.get('confidence_score', 0.0)
+                return strength * 0.6 + confidence * 0.4
+            
+            resistance_zones.sort(key=get_sort_score, reverse=True)
+            support_zones.sort(key=get_sort_score, reverse=True)
+            
+            # Return top 3 of each
+            return {
+                'resistance_zones': resistance_zones[:3],
+                'support_zones': support_zones[:3],
+                'current_price': current_price,
+                'ticker': ticker
+            }
+            
+        except Exception as e:
+            print(f"Error in analyze_support_resistance: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                'resistance_zones': [],
+                'support_zones': [],
+                'current_price': current_price if current_price else 0.0,
+                'ticker': ticker,
+                'error': str(e)
+            }
 
