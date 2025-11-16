@@ -8,6 +8,7 @@ vnstock>=0.2.0
 # Technical Analysis
 pandas-ta>=0.3.14b
 TA-Lib>=0.4.28
+scipy>=1.10.0
 
 # Database
 sqlalchemy>=2.0.0

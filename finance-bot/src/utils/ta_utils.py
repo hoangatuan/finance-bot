@@ -88,7 +88,7 @@ async def run_technical_analysis(df: pd.DataFrame, ticker: Optional[str] = None)
 
 async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: Dict):
     """
-    Analyze support and resistance zones - simple call to get data
+    Analyze support and resistance levels - simple call to get data
     
     Args:
         ticker: Stock symbol
@@ -96,7 +96,8 @@ async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: 
         indicators: Dictionary with latest indicator values
     
     Returns:
-        Dictionary with resistance_zones, support_zones, current_price, and ticker
+        Dictionary with resistance_levels, support_levels, current_price, and ticker
+        (Backward compatible format with zones for AI analyzer)
     """
     # Get current price (always fetch real-time, don't use latest from df)
     current_price = await get_current_price(ticker, verbose=False)
@@ -105,12 +106,50 @@ async def analyze_support_resistance(ticker: str, df: pd.DataFrame, indicators: 
         current_price = df.iloc[-1]['close']
     
     sr_analyzer = SupportResistanceAnalyzer()
-    supportAndResistanceData = await sr_analyzer.analyze_support_resistance(
-        ticker=ticker,
+    sr_levels = sr_analyzer.find_levels(
         df=df,
-        indicators=indicators,
-        current_price=current_price
+        current_price=current_price,
+        prominence_factor=0.5,
+        distance=5,
+        min_touches=2,
+        tolerance_percent=1.5
     )
     
-    return supportAndResistanceData
+    # Convert to backward compatible format (zones) for AI analyzer
+    # Create small zones around exact levels for compatibility
+    resistance_zones = []
+    for level in sr_levels.get('resistance_levels', []):
+        tolerance = level['price'] * 0.005  # 0.5% tolerance
+        resistance_zones.append({
+            'price': level['price'],
+            'upper': level['price'] + tolerance,
+            'lower': level['price'] - tolerance,
+            'middle': level['price'],
+            'touch_count': level['touch_count'],
+            'strength': 0.8 if level['strength'] == 'strong' else 0.4,
+            'distance_pct': ((level['price'] - current_price) / current_price) * 100
+        })
+    
+    support_zones = []
+    for level in sr_levels.get('support_levels', []):
+        tolerance = level['price'] * 0.005
+        support_zones.append({
+            'price': level['price'],
+            'upper': level['price'] + tolerance,
+            'lower': level['price'] - tolerance,
+            'middle': level['price'],
+            'touch_count': level['touch_count'],
+            'strength': 0.8 if level['strength'] == 'strong' else 0.4,
+            'distance_pct': ((level['price'] - current_price) / current_price) * 100
+        })
+    
+    # Return in backward compatible format
+    return {
+        'resistance_zones': resistance_zones[:5],  # Top 5 nearest
+        'support_zones': support_zones[:5],        # Top 5 nearest
+        'resistance_levels': sr_levels.get('resistance_levels', []),
+        'support_levels': sr_levels.get('support_levels', []),
+        'current_price': current_price,
+        'ticker': ticker
+    }
 
