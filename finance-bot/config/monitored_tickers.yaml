@@ -1,0 +1,25 @@
+# Monitored Tickers Configuration
+# List of stock tickers to monitor for surges
+
+tickers:
+  - HPG
+  - MBB
+  - DXG
+  - KDH
+  - SSI
+
+# Surge Detection Thresholds
+surge_thresholds:
+  volume_multiplier: 1.2  # Volume must be 1x average to trigger
+  price_change_pct: 3.0    # Price must change 3% to trigger
+
+# Trading Hours (Vietnam time, GMT+7)
+trading_hours:
+  session_1:
+    start: "09:00"
+    end: "11:30"
+  session_2:
+    start: "13:00"
+    end: "14:45"
+  days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+

@@ -42,7 +42,7 @@ coverage.xml
 .pytest_cache/
 
 # Environments
-.env
+# .env  # Commented out - storing .env in repo as requested
 .venv
 env/
 venv/
