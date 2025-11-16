@@ -141,9 +141,9 @@ class SupportResistanceVisualizer:
             df_plot['timestamp'] if 'timestamp' in df_plot.columns else pd.DatetimeIndex(df_plot.index)
         )
         
-        # Create figure with subplots (price chart, RSI chart, and volume chart)
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=self.figsize, 
-                                           gridspec_kw={'height_ratios': [3, 1, 1], 'hspace': 0.1})
+        # Create figure with subplots (price chart, RSI chart, MACD chart, and volume chart)
+        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=self.figsize, 
+                                                  gridspec_kw={'height_ratios': [3, 1, 1, 1], 'hspace': 0.1})
         
         # Plot candlestick chart (using sequential index)
         self._plot_candlesticks(ax1, df_plot, use_sequential_index=True)
@@ -166,11 +166,14 @@ class SupportResistanceVisualizer:
         # Plot RSI (using sequential index)
         self._plot_rsi(ax2, df_plot, use_sequential_index=True)
         
+        # Plot MACD (using sequential index)
+        self._plot_macd(ax3, df_plot, use_sequential_index=True)
+        
         # Plot volume with average line (using sequential index)
-        self._plot_volume(ax3, df_plot, use_sequential_index=True)
+        self._plot_volume(ax4, df_plot, use_sequential_index=True)
         
         # Format axes with date labels
-        self._format_axes(ax1, ax2, ax3, ticker, date_index, df_plot['plot_index'] if 'plot_index' in df_plot.columns else None)
+        self._format_axes(ax1, ax2, ax3, ax4, ticker, date_index, df_plot['plot_index'] if 'plot_index' in df_plot.columns else None)
         
         # Save or show
         if save_path:
@@ -299,8 +302,11 @@ class SupportResistanceVisualizer:
         # Get RSI values
         rsi_values = df[rsi_column].values
         
+        # Extract RSI period from column name (e.g., "rsi_14" -> 14)
+        rsi_period = rsi_column.split("_")[1] if "_" in rsi_column else "14"
+        
         # Plot RSI line
-        ax.plot(x_positions, rsi_values, color='#8B008B', linewidth=1.5, label=f'RSI ({rsi_column.split("_")[1]})', zorder=2)
+        ax.plot(x_positions, rsi_values, color='#8B008B', linewidth=1.5, label=f'RSI ({rsi_period})', zorder=2)
         
         # Add overbought (70) and oversold (30) reference lines
         ax.axhline(70, color='red', linestyle='--', linewidth=1, alpha=0.7, label='Overbought (70)', zorder=1)
@@ -312,9 +318,106 @@ class SupportResistanceVisualizer:
         ax.fill_between(x_positions, 70, 100, alpha=0.1, color='red', zorder=0)
         ax.fill_between(x_positions, 0, 30, alpha=0.1, color='green', zorder=0)
         
-        # Set y-axis limits and label
+        # Set y-axis limits and label with configuration
         ax.set_ylim(0, 100)
-        ax.set_ylabel('RSI', fontsize=10, fontweight='bold')
+        ax.set_ylabel(f'RSI({rsi_period})', fontsize=10, fontweight='bold')
+        ax.grid(True, alpha=0.3, linestyle='--', zorder=0)
+        ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
+    
+    def _plot_macd(self, ax: plt.Axes, df: pd.DataFrame, use_sequential_index: bool = False) -> None:
+        """
+        Plot MACD (Moving Average Convergence Divergence) indicator
+        
+        Args:
+            ax: Matplotlib axes
+            df: DataFrame with OHLCV data and MACD indicators
+            use_sequential_index: If True, use sequential index (0, 1, 2...) instead of datetime
+        """
+        # Find MACD columns
+        macd_col = None
+        signal_col = None
+        hist_col = None
+        
+        # Look for MACD columns (could be 'macd', 'macd_signal', 'macd_histogram' or 'macd_hist')
+        for col in df.columns:
+            if col == 'macd' and pd.api.types.is_numeric_dtype(df[col]):
+                macd_col = col
+            elif col == 'macd_signal' and pd.api.types.is_numeric_dtype(df[col]):
+                signal_col = col
+            elif col in ['macd_histogram', 'macd_hist'] and pd.api.types.is_numeric_dtype(df[col]):
+                hist_col = col
+        
+        # Check if MACD data is available
+        if macd_col is None or signal_col is None:
+            # MACD not available, show message
+            ax.text(0.5, 0.5, 'MACD data not available', 
+                   transform=ax.transAxes, ha='center', va='center',
+                   fontsize=12, style='italic', color='gray')
+            ax.set_ylabel('MACD', fontsize=10, fontweight='bold')
+            return
+        
+        # Get x-coordinates
+        if use_sequential_index and 'plot_index' in df.columns:
+            x_positions = df['plot_index'].values
+        elif isinstance(df.index, pd.DatetimeIndex):
+            x_positions = [mdates.date2num(idx) for idx in df.index]
+        else:
+            x_positions = df.index.values
+        
+        # Get MACD values
+        macd_values = df[macd_col].values
+        signal_values = df[signal_col].values
+        
+        # Try to extract MACD parameters from metadata or use defaults
+        macd_fast = 12
+        macd_slow = 26
+        macd_signal = 9
+        
+        # Check if metadata exists in DataFrame
+        if hasattr(df, 'attrs') and 'metadata' in df.attrs:
+            metadata = df.attrs.get('metadata', {})
+            params = metadata.get('parameters_used', {})
+            macd_fast = params.get('macd_fast', 12)
+            macd_slow = params.get('macd_slow', 26)
+            macd_signal = params.get('macd_signal', 9)
+        else:
+            # Try to find metadata column
+            for col in df.columns:
+                if 'metadata' in str(col).lower():
+                    try:
+                        # If metadata is stored as a column, try to extract from first non-null value
+                        metadata_val = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+                        if metadata_val and isinstance(metadata_val, dict):
+                            params = metadata_val.get('parameters_used', {})
+                            macd_fast = params.get('macd_fast', 12)
+                            macd_slow = params.get('macd_slow', 26)
+                            macd_signal = params.get('macd_signal', 9)
+                            break
+                    except:
+                        pass
+        
+        # Plot MACD line (blue)
+        ax.plot(x_positions, macd_values, color='#0066CC', linewidth=1.5, label='MACD', zorder=3)
+        
+        # Plot Signal line (red/orange)
+        ax.plot(x_positions, signal_values, color='#FF6600', linewidth=1.5, label='Signal', zorder=3)
+        
+        # Plot histogram if available
+        if hist_col is not None:
+            hist_values = df[hist_col].values
+            
+            # Color bars based on positive/negative
+            colors = ['#00AA00' if val >= 0 else '#FF0000' for val in hist_values]
+            
+            # Plot histogram as bars
+            ax.bar(x_positions, hist_values, color=colors, alpha=0.6, width=0.8, 
+                  label='Histogram', zorder=1)
+        
+        # Add zero line reference
+        ax.axhline(0, color='black', linestyle='-', linewidth=0.8, alpha=0.5, zorder=2)
+        
+        # Set y-axis label with configuration
+        ax.set_ylabel(f'MACD({macd_fast}, {macd_slow}, {macd_signal})', fontsize=10, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', zorder=0)
         ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
     
@@ -478,6 +581,7 @@ class SupportResistanceVisualizer:
         ax1: plt.Axes,
         ax2: plt.Axes,
         ax3: plt.Axes,
+        ax4: plt.Axes,
         ticker: str,
         timestamps: pd.DatetimeIndex,
         plot_indices: Optional[pd.Series] = None
@@ -488,7 +592,8 @@ class SupportResistanceVisualizer:
         Args:
             ax1: Price chart axes
             ax2: RSI chart axes
-            ax3: Volume chart axes
+            ax3: MACD chart axes
+            ax4: Volume chart axes
             ticker: Stock symbol
             timestamps: Datetime index for date labels
             plot_indices: Sequential indices used for plotting (if using sequential index)
@@ -507,6 +612,7 @@ class SupportResistanceVisualizer:
             ax1.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
             ax2.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
             ax3.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
+            ax4.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
             
             # Format x-axis with dates but use sequential positions
             # Select a reasonable number of tick positions
@@ -529,7 +635,9 @@ class SupportResistanceVisualizer:
             ax2.set_xticks(tick_positions)
             ax2.set_xticklabels([])  # Hide x-axis labels on RSI chart
             ax3.set_xticks(tick_positions)
-            ax3.set_xticklabels(tick_labels, rotation=45, ha='right')
+            ax3.set_xticklabels([])  # Hide x-axis labels on MACD chart
+            ax4.set_xticks(tick_positions)
+            ax4.set_xticklabels(tick_labels, rotation=45, ha='right')
         else:
             # Use datetime formatting (original approach)
             # Format x-axis for price chart (hide labels, volume chart will show them)
@@ -542,16 +650,22 @@ class SupportResistanceVisualizer:
             ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
             ax2.set_xticklabels([])  # Hide x-axis labels on RSI chart
             
-            # Format x-axis for volume chart
+            # Format x-axis for MACD chart (hide labels)
             ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
             ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
-            plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45, ha='right')
+            ax3.set_xticklabels([])  # Hide x-axis labels on MACD chart
+            
+            # Format x-axis for volume chart
+            ax4.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            ax4.xaxis.set_major_locator(mdates.AutoDateLocator())
+            plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha='right')
             
             # Set date range on x-axis
             if len(timestamps) > 0:
                 ax1.set_xlim(timestamps[0], timestamps[-1])
                 ax2.set_xlim(timestamps[0], timestamps[-1])
                 ax3.set_xlim(timestamps[0], timestamps[-1])
+                ax4.set_xlim(timestamps[0], timestamps[-1])
         
         # Add legend to price chart
         ax1.legend(loc='upper left', fontsize=9, framealpha=0.9)
