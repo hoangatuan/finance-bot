@@ -34,6 +34,10 @@ loguru>=0.7.0
 # OpenAI Integration
 openai>=1.0.0
 
+# Visualization
+mplfinance>=0.12.9b7
+matplotlib>=3.7.0
+
 # Development
 pytest>=7.0.0
 black>=23.0.0

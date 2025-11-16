@@ -14,6 +14,7 @@ import pandas as pd
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 from indicators.ai_analyzer import OpenAIAnalyzer
+from indicators.visualization import SupportResistanceVisualizer
 from utils.data_fetcher import fetch_extended_historical, get_current_price
 from utils.ta_utils import run_technical_analysis, analyze_support_resistance
 from utils.ai_utils import get_ai_suggestions
@@ -67,8 +68,35 @@ async def test_support_resistance_analysis(ticker: str = 'HPG'):
         
         if supportAndResistanceData:
             print(f"\n✅ Support/Resistance analysis completed successfully!")
-            print(f"   Found {len(supportAndResistanceData['resistance_zones'])} resistance zones")
-            print(f"   Found {len(supportAndResistanceData['support_zones'])} support zones")
+            print(f"   Found {len(supportAndResistanceData.get('resistance_levels', []))} resistance levels")
+            print(f"   Found {len(supportAndResistanceData.get('support_levels', []))} support levels")
+            
+            # Step 5.5: Visualize the chart
+            print(f"\n📊 Step 5: Generating visualization...")
+            try:
+                visualizer = SupportResistanceVisualizer(figsize=(16, 10), dpi=100)
+                
+                # Create charts directory if it doesn't exist
+                charts_dir = os.path.join(os.path.dirname(__file__), 'charts')
+                os.makedirs(charts_dir, exist_ok=True)
+                
+                # Generate filename with timestamp
+                timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                save_path = os.path.join(charts_dir, f'{ticker}_sr_{timestamp_str}.png')
+                
+                # Plot the chart
+                visualizer.plot_chart(
+                    df=processed_df,
+                    support_resistance_data=supportAndResistanceData,
+                    ticker=ticker,
+                    save_path=save_path,
+                    show=False  # Don't show interactively, just save
+                )
+                print(f"✅ Chart saved to: {save_path}")
+            except Exception as e:
+                print(f"⚠️  Error generating visualization: {e}")
+                import traceback
+                traceback.print_exc()
         else:
             print(f"\n⚠️  Support/Resistance analysis completed with warnings")
         
@@ -187,6 +215,10 @@ if __name__ == "__main__":
         
         if command == '--test-sr':
             # Support/resistance test
+            ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
+            asyncio.run(test_support_resistance_analysis(ticker))
+        elif command == '--visualize-sr':
+            # Support/resistance visualization
             ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
             asyncio.run(test_support_resistance_analysis(ticker))
         elif command == 'analyze-portfolio':
