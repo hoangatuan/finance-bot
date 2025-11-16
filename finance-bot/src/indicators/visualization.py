@@ -141,9 +141,9 @@ class SupportResistanceVisualizer:
             df_plot['timestamp'] if 'timestamp' in df_plot.columns else pd.DatetimeIndex(df_plot.index)
         )
         
-        # Create figure with subplots (price chart and volume chart)
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=self.figsize, 
-                                       gridspec_kw={'height_ratios': [3, 1], 'hspace': 0.1})
+        # Create figure with subplots (price chart, RSI chart, and volume chart)
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=self.figsize, 
+                                           gridspec_kw={'height_ratios': [3, 1, 1], 'hspace': 0.1})
         
         # Plot candlestick chart (using sequential index)
         self._plot_candlesticks(ax1, df_plot, use_sequential_index=True)
@@ -163,11 +163,14 @@ class SupportResistanceVisualizer:
         if resistance_levels:
             self._plot_levels(ax1, resistance_levels, is_resistance=True)
         
-        # Plot volume (using sequential index)
-        self._plot_volume(ax2, df_plot, use_sequential_index=True)
+        # Plot RSI (using sequential index)
+        self._plot_rsi(ax2, df_plot, use_sequential_index=True)
+        
+        # Plot volume with average line (using sequential index)
+        self._plot_volume(ax3, df_plot, use_sequential_index=True)
         
         # Format axes with date labels
-        self._format_axes(ax1, ax2, ticker, date_index, df_plot['plot_index'] if 'plot_index' in df_plot.columns else None)
+        self._format_axes(ax1, ax2, ax3, ticker, date_index, df_plot['plot_index'] if 'plot_index' in df_plot.columns else None)
         
         # Save or show
         if save_path:
@@ -261,9 +264,63 @@ class SupportResistanceVisualizer:
         ax.set_ylabel('Price', fontsize=12, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--', zorder=0)
     
+    def _plot_rsi(self, ax: plt.Axes, df: pd.DataFrame, use_sequential_index: bool = False) -> None:
+        """
+        Plot RSI (Relative Strength Index) indicator
+        
+        Args:
+            ax: Matplotlib axes
+            df: DataFrame with OHLCV data and RSI indicator
+            use_sequential_index: If True, use sequential index (0, 1, 2...) instead of datetime
+        """
+        # Find RSI column (could be rsi_14, rsi_20, etc.)
+        rsi_column = None
+        for col in df.columns:
+            if col.startswith('rsi_') and pd.api.types.is_numeric_dtype(df[col]):
+                rsi_column = col
+                break
+        
+        if rsi_column is None or rsi_column not in df.columns:
+            # RSI not available, show message
+            ax.text(0.5, 0.5, 'RSI data not available', 
+                   transform=ax.transAxes, ha='center', va='center',
+                   fontsize=12, style='italic', color='gray')
+            ax.set_ylabel('RSI', fontsize=10, fontweight='bold')
+            return
+        
+        # Get x-coordinates
+        if use_sequential_index and 'plot_index' in df.columns:
+            x_positions = df['plot_index'].values
+        elif isinstance(df.index, pd.DatetimeIndex):
+            x_positions = [mdates.date2num(idx) for idx in df.index]
+        else:
+            x_positions = df.index.values
+        
+        # Get RSI values
+        rsi_values = df[rsi_column].values
+        
+        # Plot RSI line
+        ax.plot(x_positions, rsi_values, color='#8B008B', linewidth=1.5, label=f'RSI ({rsi_column.split("_")[1]})', zorder=2)
+        
+        # Add overbought (70) and oversold (30) reference lines
+        ax.axhline(70, color='red', linestyle='--', linewidth=1, alpha=0.7, label='Overbought (70)', zorder=1)
+        ax.axhline(50, color='gray', linestyle=':', linewidth=0.8, alpha=0.5, zorder=1)
+        ax.axhline(30, color='green', linestyle='--', linewidth=1, alpha=0.7, label='Oversold (30)', zorder=1)
+        
+        # Fill area between RSI and reference lines
+        ax.fill_between(x_positions, 30, 70, alpha=0.1, color='gray', zorder=0)
+        ax.fill_between(x_positions, 70, 100, alpha=0.1, color='red', zorder=0)
+        ax.fill_between(x_positions, 0, 30, alpha=0.1, color='green', zorder=0)
+        
+        # Set y-axis limits and label
+        ax.set_ylim(0, 100)
+        ax.set_ylabel('RSI', fontsize=10, fontweight='bold')
+        ax.grid(True, alpha=0.3, linestyle='--', zorder=0)
+        ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
+    
     def _plot_volume(self, ax: plt.Axes, df: pd.DataFrame, use_sequential_index: bool = False) -> None:
         """
-        Plot volume bars
+        Plot volume bars with average volume line
         
         Args:
             ax: Matplotlib axes
@@ -287,11 +344,35 @@ class SupportResistanceVisualizer:
                 x_positions.append(idx)
         
         # Plot volume bars
-        ax.bar(x_positions, df['volume'], color=colors, alpha=0.6, width=0.8)
+        ax.bar(x_positions, df['volume'], color=colors, alpha=0.6, width=0.8, zorder=1)
+        
+        # Plot volume moving average line (prefer 20-day, fallback to 50-day, then simple mean)
+        volume_ma = None
+        ma_period = None
+        
+        # Try to find vol_sma20 (20-day volume moving average)
+        if 'vol_sma20' in df.columns and not df['vol_sma20'].isnull().all():
+            volume_ma = df['vol_sma20'].values
+            ma_period = 20
+        # Fallback to vol_sma50 (50-day volume moving average)
+        elif 'vol_sma50' in df.columns and not df['vol_sma50'].isnull().all():
+            volume_ma = df['vol_sma50'].values
+            ma_period = 50
+        # Last resort: use simple mean (not ideal, but better than nothing)
+        else:
+            avg_volume = df['volume'].mean()
+            volume_ma = np.full(len(x_positions), avg_volume)
+            ma_period = 'Overall'
+        
+        # Plot the volume moving average line
+        if volume_ma is not None and len(x_positions) > 0:
+            ax.plot(x_positions, volume_ma, color='orange', linestyle='--', linewidth=2, 
+                   alpha=0.8, label=f'Volume MA({ma_period})', zorder=2)
         
         # Format volume axis
         ax.set_ylabel('Volume', fontsize=10, fontweight='bold')
-        ax.grid(True, alpha=0.3, linestyle='--', axis='y')
+        ax.grid(True, alpha=0.3, linestyle='--', axis='y', zorder=0)
+        ax.legend(loc='upper right', fontsize=8, framealpha=0.9)
     
     def _plot_levels(self, ax: plt.Axes, levels: List[Dict], is_resistance: bool) -> None:
         """
@@ -396,6 +477,7 @@ class SupportResistanceVisualizer:
         self,
         ax1: plt.Axes,
         ax2: plt.Axes,
+        ax3: plt.Axes,
         ticker: str,
         timestamps: pd.DatetimeIndex,
         plot_indices: Optional[pd.Series] = None
@@ -405,7 +487,8 @@ class SupportResistanceVisualizer:
         
         Args:
             ax1: Price chart axes
-            ax2: Volume chart axes
+            ax2: RSI chart axes
+            ax3: Volume chart axes
             ticker: Stock symbol
             timestamps: Datetime index for date labels
             plot_indices: Sequential indices used for plotting (if using sequential index)
@@ -423,6 +506,7 @@ class SupportResistanceVisualizer:
             # Set x-axis limits based on sequential indices
             ax1.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
             ax2.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
+            ax3.set_xlim(plot_indices.min() - 0.5, plot_indices.max() + 0.5)
             
             # Format x-axis with dates but use sequential positions
             # Select a reasonable number of tick positions
@@ -439,11 +523,13 @@ class SupportResistanceVisualizer:
                 tick_labels = [pd.Timestamp(ts).strftime('%Y-%m-%d') if isinstance(ts, (pd.Timestamp, datetime)) else str(ts) 
                               for ts in (timestamps[::step] if hasattr(timestamps, '__getitem__') else [timestamps])]
             
-            # Set ticks for both axes
+            # Set ticks for all axes
             ax1.set_xticks(tick_positions)
             ax1.set_xticklabels([])  # Hide x-axis labels on price chart
             ax2.set_xticks(tick_positions)
-            ax2.set_xticklabels(tick_labels, rotation=45, ha='right')
+            ax2.set_xticklabels([])  # Hide x-axis labels on RSI chart
+            ax3.set_xticks(tick_positions)
+            ax3.set_xticklabels(tick_labels, rotation=45, ha='right')
         else:
             # Use datetime formatting (original approach)
             # Format x-axis for price chart (hide labels, volume chart will show them)
@@ -451,15 +537,21 @@ class SupportResistanceVisualizer:
             ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
             ax1.set_xticklabels([])  # Hide x-axis labels on price chart
             
-            # Format x-axis for volume chart
+            # Format x-axis for RSI chart (hide labels)
             ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
             ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
-            plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+            ax2.set_xticklabels([])  # Hide x-axis labels on RSI chart
+            
+            # Format x-axis for volume chart
+            ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+            ax3.xaxis.set_major_locator(mdates.AutoDateLocator())
+            plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45, ha='right')
             
             # Set date range on x-axis
             if len(timestamps) > 0:
                 ax1.set_xlim(timestamps[0], timestamps[-1])
                 ax2.set_xlim(timestamps[0], timestamps[-1])
+                ax3.set_xlim(timestamps[0], timestamps[-1])
         
         # Add legend to price chart
         ax1.legend(loc='upper left', fontsize=9, framealpha=0.9)
