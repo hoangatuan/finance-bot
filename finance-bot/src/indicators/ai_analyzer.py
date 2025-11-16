@@ -124,6 +124,13 @@ class OpenAIAnalyzer:
                 lines.append(f"- Recent Low: {recent_price_action['low']:,.2f}")
             if 'trend' in recent_price_action:
                 lines.append(f"- Trend: {recent_price_action['trend']}")
+            
+            # Multi-timeframe context
+            if 'multi_timeframe_context' in recent_price_action:
+                lines.append("\n### Multi-Timeframe Analysis:")
+                lines.append(recent_price_action['multi_timeframe_context'])
+            elif 'timeframes_analyzed' in recent_price_action:
+                lines.append(f"\n### Timeframes Analyzed: {', '.join(recent_price_action['timeframes_analyzed'])}")
         
         return "\n".join(lines)
     
@@ -164,6 +171,11 @@ Important considerations:
 - RSI above 70 suggests overbought conditions, below 30 suggests oversold
 - MACD crossover signals can indicate trend changes
 - Volume confirmation is important for breakouts
+- If multi-timeframe analysis is provided, consider the alignment of signals across timeframes:
+    + Higher timeframes (1M, 1W) provide stronger trend context
+    + Lower timeframes (1D, 4H) provide entry/exit timing
+    + Aligned signals across timeframes increase confidence
+    + Conflicting signals suggest caution or range-bound trading
 - Rules I often follow:
     + 30-30-40 rule when buying: First step buy buy 30% of the intended purchase amount, second step buy 30% of the intended purchase amount, third step buy 40% of the intended purchase amount.
     + When it break resistance zone with strong confidence, it's a good entry to buy more.

@@ -20,6 +20,7 @@ from utils.ta_utils import run_technical_analysis, analyze_support_resistance
 from utils.ai_utils import get_ai_suggestions
 from portfolio.analyzer import run_daily_analysis
 from portfolio.formatter import format_portfolio_analysis
+from flow import analyze_ticker_multi_timeframe
 
 
 async def fetch_hpg_data():
@@ -213,7 +214,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
         
-        if command == '--test-sr':
+        if command == 'analyze' or command == '--analyze':
+            # Multi-timeframe analysis (new main flow)
+            ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
+            asyncio.run(analyze_ticker_multi_timeframe(ticker, verbose=True))
+        elif command == '--test-sr':
             # Support/resistance test
             ticker = sys.argv[2] if len(sys.argv) > 2 else 'HPG'
             asyncio.run(test_support_resistance_analysis(ticker))
@@ -230,5 +235,5 @@ if __name__ == "__main__":
             # Default: run main function
             asyncio.run(main())
     else:
-        # Run the async main function (default behavior)
-        asyncio.run(main()) 
+        # Default: run multi-timeframe analysis for HPG
+        asyncio.run(analyze_ticker_multi_timeframe('HPG', verbose=True)) 
