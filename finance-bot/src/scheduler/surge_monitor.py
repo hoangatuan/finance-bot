@@ -36,10 +36,11 @@ class SurgeMonitor:
     TZ_VIETNAM = ZoneInfo("Asia/Ho_Chi_Minh")
     
     # Trading hours (Vietnam time, GMT+7)
-    TRADING_SESSION_1_START = time(9, 0)   # 9:00 AM
-    TRADING_SESSION_1_END = time(11, 30)     # 11:30 AM
-    TRADING_SESSION_2_START = time(13, 0)    # 1:00 PM
-    TRADING_SESSION_2_END = time(14, 45)     # 2:45 PM
+    # Adjusted by -1 hour for UTC+8 timezone
+    TRADING_SESSION_1_START = time(8, 0)   # 8:00 AM (9:00 AM UTC+7)
+    TRADING_SESSION_1_END = time(10, 30)     # 10:30 AM (11:30 AM UTC+7)
+    TRADING_SESSION_2_START = time(12, 0)    # 12:00 PM (1:00 PM UTC+7)
+    TRADING_SESSION_2_END = time(13, 45)     # 1:45 PM (2:45 PM UTC+7)
     
     def __init__(
         self,
